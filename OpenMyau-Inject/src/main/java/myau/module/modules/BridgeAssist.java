@@ -26,8 +26,7 @@ import net.minecraft.util.MathHelper;
 import net.minecraft.util.MovingObjectPosition;
 import net.minecraft.util.Vec3;
 
-/**
- */
+
 public class BridgeAssist extends Module {
     private static final Minecraft mc = Minecraft.getMinecraft();
     private static final EnumFacing[] SIDES = {
@@ -176,14 +175,11 @@ public class BridgeAssist extends Module {
         }
     }
 
-    /**
-     */
     public static boolean isHandlingMovementFix() {
         return movementFixActive;
     }
 
-    /**
-     */
+
     public static void fixMovementForServerRotation(BridgeInputEvent event) {
         if (!movementFixActive) {
             return;
