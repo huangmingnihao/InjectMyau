@@ -1,0 +1,626 @@
+package myau.util;
+
+import java.nio.FloatBuffer;
+import java.nio.IntBuffer;
+import java.util.HashMap;
+import java.util.Map;
+
+import javax.vecmath.Vector4d;
+
+import org.lwjgl.opengl.GL11;
+import org.lwjgl.util.glu.GLU;
+
+import myau.access.AccessorEntityRenderer;
+import myau.access.AccessorMinecraft;
+import myau.access.AccessorRenderManager;
+import myau.enums.ChatColors;
+import net.minecraft.client.Minecraft;
+import net.minecraft.client.gui.Gui;
+import net.minecraft.client.gui.ScaledResolution;
+import net.minecraft.client.renderer.GLAllocation;
+import net.minecraft.client.renderer.GlStateManager;
+import net.minecraft.client.renderer.OpenGlHelper;
+import net.minecraft.client.renderer.RenderGlobal;
+import net.minecraft.client.renderer.RenderHelper;
+import net.minecraft.client.renderer.Tessellator;
+import net.minecraft.client.renderer.WorldRenderer;
+import net.minecraft.client.renderer.culling.Frustum;
+import net.minecraft.client.renderer.vertex.DefaultVertexFormats;
+import net.minecraft.client.shader.Framebuffer;
+import net.minecraft.entity.Entity;
+import net.minecraft.entity.player.EntityPlayer;
+import net.minecraft.init.Items;
+import net.minecraft.item.ItemStack;
+import net.minecraft.nbt.NBTTagList;
+import net.minecraft.potion.Potion;
+import net.minecraft.potion.PotionEffect;
+import net.minecraft.util.AxisAlignedBB;
+import net.minecraft.util.BlockPos;
+import net.minecraft.util.ResourceLocation;
+import net.minecraft.util.Vec3;
+
+public class RenderUtil {
+    private static Minecraft mc;
+    private static Frustum cameraFrustum;
+    private static Map<Integer, EnchantmentData> enchantmentMap;
+
+    static {
+        RenderUtil.mc = Minecraft.getMinecraft();
+        RenderUtil.cameraFrustum = new Frustum();
+        RenderUtil.enchantmentMap = new EnchantmentMap();
+    }
+
+    private static ChatColors getColorForLevel(int currentLevel, int maxLevel) {
+        if (currentLevel > maxLevel) {
+            return ChatColors.LIGHT_PURPLE;
+        }
+        if (currentLevel == maxLevel) {
+            return ChatColors.RED;
+        }
+        switch (currentLevel) {
+            case 1: {
+                return ChatColors.AQUA;
+            }
+            case 2: {
+                return ChatColors.GREEN;
+            }
+            case 3: {
+                return ChatColors.YELLOW;
+            }
+            case 4: {
+                return ChatColors.GOLD;
+            }
+        }
+        return ChatColors.GRAY;
+    }
+
+    public static void drawOutlinedString(String text, float x, float y) {
+        String string2 = text.replaceAll("(?i)§[\\da-f]", "");
+        RenderUtil.mc.fontRendererObj.drawString(string2, x + 1.0f, y, 0, false);
+        RenderUtil.mc.fontRendererObj.drawString(string2, x - 1.0f, y, 0, false);
+        RenderUtil.mc.fontRendererObj.drawString(string2, x, y + 1.0f, 0, false);
+        RenderUtil.mc.fontRendererObj.drawString(string2, x, y - 1.0f, 0, false);
+        RenderUtil.mc.fontRendererObj.drawString(text, x, y, -1, false);
+    }
+
+    public static void renderEnchantmentText(ItemStack itemStack, float x, float y, float scale) {
+        NBTTagList nBTTagList;
+        nBTTagList = itemStack.getItem() == Items.enchanted_book ? Items.enchanted_book.getEnchantments(itemStack) : itemStack.getEnchantmentTagList();
+        if (nBTTagList != null) {
+            for (int i = 0; i < nBTTagList.tagCount(); ++i) {
+                EnchantmentData enchantmentData = enchantmentMap.get(nBTTagList.getCompoundTagAt(i).getInteger("id"));
+                if (enchantmentData == null) {
+                    continue;
+                }
+                short s = nBTTagList.getCompoundTagAt(i).getShort("lvl");
+                ChatColors chatColors = RenderUtil.getColorForLevel(s, enchantmentData.maxLevel);
+                RenderUtil.drawOutlinedString(ChatColors.formatColor(String.format("&r%s%s%d&r", enchantmentData.shortName, chatColors, (int) s)), x * (1.0f / scale), (y + (float) i * 4.0f) * (1.0f / scale));
+            }
+        }
+    }
+
+    public static void renderItemInGUI(ItemStack itemStack, int x, int y) {
+        GlStateManager.pushMatrix();
+        GlStateManager.depthMask(true);
+        GlStateManager.clear(256);
+        RenderHelper.enableGUIStandardItemLighting();
+        GL11.glDisable(GL11.GL_LIGHTING);
+        GlStateManager.pushMatrix();
+        GlStateManager.scale(1.0f, 1.0f, -0.01f);
+        RenderUtil.mc.getRenderItem().zLevel = -150.0f;
+        mc.getRenderItem().renderItemAndEffectIntoGUI(itemStack, x, y);
+        mc.getRenderItem().renderItemOverlays(RenderUtil.mc.fontRendererObj, itemStack, x, y);
+        RenderUtil.mc.getRenderItem().zLevel = 0.0f;
+        GlStateManager.popMatrix();
+        RenderHelper.disableStandardItemLighting();
+        GlStateManager.enableAlpha();
+        GlStateManager.disableBlend();
+        GlStateManager.enableTexture2D();
+        GlStateManager.popMatrix();
+        GlStateManager.pushMatrix();
+        GlStateManager.scale(0.5f, 0.5f, 0.5f);
+        GlStateManager.disableDepth();
+        RenderUtil.renderEnchantmentText(itemStack, x, y, 0.5f);
+        GlStateManager.enableDepth();
+        GlStateManager.scale(2.0f, 2.0f, 2.0f);
+        GlStateManager.popMatrix();
+    }
+
+    public static void renderPotionEffect(PotionEffect potionEffect, int x, int y) {
+        int n3 = Potion.potionTypes[potionEffect.getPotionID()].getStatusIconIndex();
+        GlStateManager.color(1.0f, 1.0f, 1.0f, 1.0f);
+        GlStateManager.pushMatrix();
+        GlStateManager.depthMask(true);
+        GlStateManager.clear(256);
+        GlStateManager.pushMatrix();
+        GlStateManager.scale(1.0f, 1.0f, -0.01f);
+        mc.getTextureManager().bindTexture(new ResourceLocation("textures/gui/container/inventory.png"));
+        Gui.drawModalRectWithCustomSizedTexture(x, y, n3 % 8 * 18, 198 + n3 / 8 * 18, 18, 18, 256.0f, 256.0f);
+        GlStateManager.popMatrix();
+        GlStateManager.enableAlpha();
+        GlStateManager.disableBlend();
+        GlStateManager.enableTexture2D();
+        GlStateManager.popMatrix();
+    }
+
+    public static void drawRect(float x1, float y1, float x2, float y2, int color) {
+        if (color == 0) {
+            return;
+        }
+        RenderUtil.setColor(color);
+        GL11.glBegin(GL11.GL_POLYGON);
+        GL11.glVertex2f(x1, y1);
+        GL11.glVertex2f(x1, y2);
+        GL11.glVertex2f(x2, y2);
+        GL11.glVertex2f(x2, y1);
+        GL11.glEnd();
+        GlStateManager.resetColor();
+    }
+
+    public static void drawGradientRect(float x1, float y1, float x2, float y2, int left, int right) {
+        if (left == 0 && right == 0) {
+            return;
+        }
+        GL11.glShadeModel(GL11.GL_SMOOTH);
+        GL11.glBegin(GL11.GL_QUADS);
+        setColor(left);
+        GL11.glVertex2f(x1, y1);
+        GL11.glVertex2f(x1, y2);
+        setColor(right);
+        GL11.glVertex2f(x2, y2);
+        GL11.glVertex2f(x2, y1);
+        GL11.glEnd();
+        GL11.glShadeModel(GL11.GL_FLAT);
+        GlStateManager.resetColor();
+    }
+    public static void drawRect3D(float x1, float y1, float x2, float y2, int color) {
+        if (color == 0) {
+            return;
+        }
+        RenderUtil.setColor(color);
+        GL11.glEnable(GL11.GL_POLYGON_SMOOTH);
+        GL11.glHint(GL11.GL_POLYGON_SMOOTH_HINT, GL11.GL_NICEST);
+        GL11.glBegin(GL11.GL_POLYGON);
+        for (int i = 0; i < 2; ++i) {
+            GL11.glVertex2f(x1, y1);
+            GL11.glVertex2f(x1, y2);
+            GL11.glVertex2f(x2, y2);
+            GL11.glVertex2f(x2, y1);
+        }
+        GL11.glEnd();
+        GL11.glDisable(GL11.GL_POLYGON_SMOOTH);
+        GlStateManager.resetColor();
+    }
+    public static void drawOutlineRect(float x1, float y1, float x2, float y2, float lineWidth, int backgroundColor, int lineColor) {
+        RenderUtil.drawRect(x1, y1, x2, y2, backgroundColor);
+        if (lineColor == 0) {
+            return;
+        }
+        RenderUtil.setColor(lineColor);
+        GL11.glLineWidth(lineWidth);
+        GL11.glEnable(GL11.GL_LINE_SMOOTH);
+        GL11.glHint(GL11.GL_LINE_SMOOTH_HINT, GL11.GL_NICEST);
+        GL11.glBegin(GL11.GL_LINES);
+        GL11.glVertex2f(x1, y1);
+        GL11.glVertex2f(x1, y2);
+        GL11.glVertex2f(x2, y2);
+        GL11.glVertex2f(x2, y1);
+        GL11.glVertex2f(x1, y1);
+        GL11.glVertex2f(x2, y1);
+        GL11.glVertex2f(x1, y2);
+        GL11.glVertex2f(x2, y2);
+        GL11.glEnd();
+        GL11.glDisable(GL11.GL_LINE_SMOOTH);
+        GL11.glLineWidth(2.0f);
+        GlStateManager.resetColor();
+    }
+    public static void drawLine(float x1, float y1, float x2, float y2, float lineWidth, int color) {
+        RenderUtil.setColor(color);
+        GL11.glLineWidth(lineWidth);
+        GL11.glEnable(GL11.GL_LINE_SMOOTH);
+        GL11.glHint(GL11.GL_LINE_SMOOTH_HINT, GL11.GL_NICEST);
+        GL11.glBegin(GL11.GL_LINES);
+        GL11.glVertex2f(x1, y1);
+        GL11.glVertex2f(x2, y2);
+        GL11.glEnd();
+        GL11.glDisable(GL11.GL_LINE_SMOOTH);
+        GL11.glLineWidth(2.0f);
+        GlStateManager.resetColor();
+    }
+    public static void drawLine3D(Vec3 start, double endX, double endY, double endZ, float red, float green, float blue, float alpha, float lineWidth) {
+        GlStateManager.pushMatrix();
+        GlStateManager.color(red, green, blue, alpha);
+        boolean bl = RenderUtil.mc.gameSettings.viewBobbing;
+        RenderUtil.mc.gameSettings.viewBobbing = false;
+        AccessorEntityRenderer.callSetupCameraTransform(RenderUtil.mc.entityRenderer, AccessorMinecraft.getTimer(RenderUtil.mc).renderPartialTicks, 2);
+        RenderUtil.mc.gameSettings.viewBobbing = bl;
+        GL11.glLineWidth(lineWidth);
+        GL11.glEnable(GL11.GL_LINE_SMOOTH);
+        GL11.glHint(GL11.GL_LINE_SMOOTH_HINT, GL11.GL_NICEST);
+        GL11.glBegin(GL11.GL_LINES);
+        GL11.glVertex3d(start.xCoord, start.yCoord, start.zCoord);
+        GL11.glVertex3d(endX - AccessorRenderManager.getRenderPosX(mc.getRenderManager()), endY - AccessorRenderManager.getRenderPosY(mc.getRenderManager()), endZ - AccessorRenderManager.getRenderPosZ(mc.getRenderManager()));
+        GL11.glEnd();
+        GL11.glDisable(GL11.GL_LINE_SMOOTH);
+        GL11.glLineWidth(2.0f);
+        GlStateManager.resetColor();
+        GlStateManager.popMatrix();
+    }
+    public static void drawArrow(float centerX, float centerY, float angle, float length, float lineWidth, int color) {
+        float f6 = angle + (float) Math.toRadians(45.0);
+        float f7 = angle - (float) Math.toRadians(45.0);
+        RenderUtil.setColor(color);
+        GL11.glLineWidth(lineWidth);
+        GL11.glEnable(GL11.GL_LINE_SMOOTH);
+        GL11.glHint(GL11.GL_LINE_SMOOTH_HINT, GL11.GL_NICEST);
+        GL11.glBegin(GL11.GL_LINES);
+        GL11.glVertex2f(centerX, centerY);
+        GL11.glVertex2f(centerX + length * (float) Math.cos(f6), centerY + length * (float) Math.sin(f6));
+        GL11.glVertex2f(centerX, centerY);
+        GL11.glVertex2f(centerX + length * (float) Math.cos(f7), centerY + length * (float) Math.sin(f7));
+        GL11.glEnd();
+        GL11.glDisable(GL11.GL_LINE_SMOOTH);
+        GL11.glLineWidth(2.0f);
+        GlStateManager.resetColor();
+    }
+    public static void drawTriangle(float centerX, float centerY, float angle, float length, int color) {
+        float f5 = angle + (float) Math.toRadians(26.25);
+        float f6 = angle - (float) Math.toRadians(26.25);
+        RenderUtil.setColor(color);
+        GL11.glEnable(GL11.GL_POLYGON_SMOOTH);
+        GL11.glHint(GL11.GL_POLYGON_SMOOTH_HINT, GL11.GL_NICEST);
+        GL11.glBegin(9);
+        GL11.glVertex2f(centerX, centerY);
+        GL11.glVertex2f(centerX + length * (float) Math.cos(f5), centerY + length * (float) Math.sin(f5));
+        GL11.glVertex2f(centerX + length * (float) Math.cos(f6), centerY + length * (float) Math.sin(f6));
+        GL11.glEnd();
+        GL11.glDisable(GL11.GL_POLYGON_SMOOTH);
+        GlStateManager.resetColor();
+    }
+    public static void drawFramebuffer(Framebuffer framebuffer) {
+        ScaledResolution scaledResolution = new ScaledResolution(mc);
+        GlStateManager.bindTexture(framebuffer.framebufferTexture);
+        GL11.glBegin(GL11.GL_QUADS);
+        GL11.glTexCoord2d(0.0, 1.0);
+        GL11.glVertex2d(0.0, 0.0);
+        GL11.glTexCoord2d(0.0, 0.0);
+        GL11.glVertex2d(0.0, scaledResolution.getScaledHeight());
+        GL11.glTexCoord2d(1.0, 0.0);
+        GL11.glVertex2d(scaledResolution.getScaledWidth(), scaledResolution.getScaledHeight());
+        GL11.glTexCoord2d(1.0, 1.0);
+        GL11.glVertex2d(scaledResolution.getScaledWidth(), 0.0);
+        GL11.glEnd();
+    }
+    public static void fillCircle(double x, double y, double radius, int segments, int color) {
+        GlStateManager.enableBlend();
+        GlStateManager.disableTexture2D();
+        GlStateManager.tryBlendFuncSeparate(770, 771, 1, 0);
+        RenderUtil.setColor(color);
+        GL11.glBegin(GL11.GL_TRIANGLE_FAN);
+        GL11.glVertex2d(x, y);
+
+        for (int i = 0; i <= segments; i++) {
+            double angle = i * (Math.PI * 2.0 / segments);
+            double px = x + Math.cos(angle) * radius;
+            double py = y + Math.sin(angle) * radius;
+            GL11.glVertex2d(px, py);
+        }
+        GL11.glEnd();
+        GlStateManager.enableTexture2D();
+        GlStateManager.disableBlend();
+        GlStateManager.resetColor();
+    }
+    public static void drawCircle(double centerX, double centerY, double centerZ, double radius, int segments, int color) {
+        RenderUtil.setColor(color);
+        GL11.glLineWidth(3.0f);
+        GL11.glEnable(GL11.GL_LINE_SMOOTH);
+        GL11.glHint(GL11.GL_LINE_SMOOTH_HINT, GL11.GL_NICEST);
+        GL11.glBegin(GL11.GL_LINE_LOOP);
+        for (int i = 0; i <= segments; ++i) {
+            double d5 = (double) i * (Math.PI * 2 / (double) segments);
+            GL11.glVertex3d(centerX + Math.cos(d5) * radius, centerY, centerZ + Math.sin(d5) * radius);
+        }
+        GL11.glEnd();
+        GL11.glDisable(GL11.GL_LINE_SMOOTH);
+        GL11.glLineWidth(2.0f);
+        GlStateManager.resetColor();
+    }
+    public static void drawEntityCircle(Entity entity, double radius, int segments, int color) {
+        double d2 = RenderUtil.lerpDouble(entity.posX, entity.lastTickPosX, AccessorMinecraft.getTimer(RenderUtil.mc).renderPartialTicks) - AccessorRenderManager.getRenderPosX(mc.getRenderManager());
+        double d3 = RenderUtil.lerpDouble(entity.posY, entity.lastTickPosY, AccessorMinecraft.getTimer(RenderUtil.mc).renderPartialTicks) - AccessorRenderManager.getRenderPosY(mc.getRenderManager());
+        double d4 = RenderUtil.lerpDouble(entity.posZ, entity.lastTickPosZ, AccessorMinecraft.getTimer(RenderUtil.mc).renderPartialTicks) - AccessorRenderManager.getRenderPosZ(mc.getRenderManager());
+        RenderUtil.drawCircle(d2, d3, d4, radius, segments, color);
+    }
+    public static void drawFilledBox(AxisAlignedBB axisAlignedBB, int red, int green, int blue) {
+        Tessellator tessellator = Tessellator.getInstance();
+        WorldRenderer worldRenderer = tessellator.getWorldRenderer();
+        worldRenderer.begin(7, DefaultVertexFormats.POSITION_COLOR);
+        worldRenderer.pos(axisAlignedBB.minX, axisAlignedBB.minY, axisAlignedBB.minZ).color(red, green, blue, 63).endVertex();
+        worldRenderer.pos(axisAlignedBB.minX, axisAlignedBB.minY, axisAlignedBB.maxZ).color(red, green, blue, 63).endVertex();
+        worldRenderer.pos(axisAlignedBB.maxX, axisAlignedBB.minY, axisAlignedBB.maxZ).color(red, green, blue, 63).endVertex();
+        worldRenderer.pos(axisAlignedBB.maxX, axisAlignedBB.minY, axisAlignedBB.minZ).color(red, green, blue, 63).endVertex();
+        worldRenderer.pos(axisAlignedBB.minX, axisAlignedBB.maxY, axisAlignedBB.minZ).color(red, green, blue, 63).endVertex();
+        worldRenderer.pos(axisAlignedBB.minX, axisAlignedBB.maxY, axisAlignedBB.maxZ).color(red, green, blue, 63).endVertex();
+        worldRenderer.pos(axisAlignedBB.maxX, axisAlignedBB.maxY, axisAlignedBB.maxZ).color(red, green, blue, 63).endVertex();
+        worldRenderer.pos(axisAlignedBB.maxX, axisAlignedBB.maxY, axisAlignedBB.minZ).color(red, green, blue, 63).endVertex();
+        worldRenderer.pos(axisAlignedBB.minX, axisAlignedBB.minY, axisAlignedBB.minZ).color(red, green, blue, 63).endVertex();
+        worldRenderer.pos(axisAlignedBB.minX, axisAlignedBB.maxY, axisAlignedBB.minZ).color(red, green, blue, 63).endVertex();
+        worldRenderer.pos(axisAlignedBB.maxX, axisAlignedBB.maxY, axisAlignedBB.minZ).color(red, green, blue, 63).endVertex();
+        worldRenderer.pos(axisAlignedBB.maxX, axisAlignedBB.minY, axisAlignedBB.minZ).color(red, green, blue, 63).endVertex();
+        worldRenderer.pos(axisAlignedBB.minX, axisAlignedBB.minY, axisAlignedBB.maxZ).color(red, green, blue, 63).endVertex();
+        worldRenderer.pos(axisAlignedBB.minX, axisAlignedBB.maxY, axisAlignedBB.maxZ).color(red, green, blue, 63).endVertex();
+        worldRenderer.pos(axisAlignedBB.maxX, axisAlignedBB.maxY, axisAlignedBB.maxZ).color(red, green, blue, 63).endVertex();
+        worldRenderer.pos(axisAlignedBB.maxX, axisAlignedBB.minY, axisAlignedBB.maxZ).color(red, green, blue, 63).endVertex();
+        worldRenderer.pos(axisAlignedBB.minX, axisAlignedBB.minY, axisAlignedBB.minZ).color(red, green, blue, 63).endVertex();
+        worldRenderer.pos(axisAlignedBB.minX, axisAlignedBB.maxY, axisAlignedBB.minZ).color(red, green, blue, 63).endVertex();
+        worldRenderer.pos(axisAlignedBB.minX, axisAlignedBB.maxY, axisAlignedBB.maxZ).color(red, green, blue, 63).endVertex();
+        worldRenderer.pos(axisAlignedBB.minX, axisAlignedBB.minY, axisAlignedBB.maxZ).color(red, green, blue, 63).endVertex();
+        worldRenderer.pos(axisAlignedBB.maxX, axisAlignedBB.minY, axisAlignedBB.minZ).color(red, green, blue, 63).endVertex();
+        worldRenderer.pos(axisAlignedBB.maxX, axisAlignedBB.maxY, axisAlignedBB.minZ).color(red, green, blue, 63).endVertex();
+        worldRenderer.pos(axisAlignedBB.maxX, axisAlignedBB.maxY, axisAlignedBB.maxZ).color(red, green, blue, 63).endVertex();
+        worldRenderer.pos(axisAlignedBB.maxX, axisAlignedBB.minY, axisAlignedBB.maxZ).color(red, green, blue, 63).endVertex();
+        tessellator.draw();
+    }
+    public static void drawBoundingBox(AxisAlignedBB axisAlignedBB, int red, int green, int blue, int alpha, float lineWidth) {
+        GL11.glLineWidth(lineWidth);
+        GL11.glEnable(GL11.GL_LINE_SMOOTH);
+        GL11.glHint(GL11.GL_LINE_SMOOTH_HINT, GL11.GL_NICEST);
+        RenderGlobal.drawOutlinedBoundingBox(axisAlignedBB, red, green, blue, alpha);
+        GL11.glDisable(GL11.GL_LINE_SMOOTH);
+        GL11.glLineWidth(2.0f);
+    }
+    public static void drawEntityBox(Entity entity, int red, int green, int blue) {
+        double d2 = RenderUtil.lerpDouble(entity.posX, entity.lastTickPosX, AccessorMinecraft.getTimer(RenderUtil.mc).renderPartialTicks);
+        double d3 = RenderUtil.lerpDouble(entity.posY, entity.lastTickPosY, AccessorMinecraft.getTimer(RenderUtil.mc).renderPartialTicks);
+        double d4 = RenderUtil.lerpDouble(entity.posZ, entity.lastTickPosZ, AccessorMinecraft.getTimer(RenderUtil.mc).renderPartialTicks);
+        RenderUtil.drawFilledBox(entity.getEntityBoundingBox().expand(0.1f, 0.1f, 0.1f).offset(d2 - entity.posX, d3 - entity.posY, d4 - entity.posZ).offset(-AccessorRenderManager.getRenderPosX(mc.getRenderManager()), -AccessorRenderManager.getRenderPosY(mc.getRenderManager()), -AccessorRenderManager.getRenderPosZ(mc.getRenderManager())), red, green, blue);
+    }
+    public static void drawEntityBoundingBox(Entity entity, int red, int green, int blue, int alpha, float lineWidth, double expand) {
+        double d2 = RenderUtil.lerpDouble(entity.posX, entity.lastTickPosX, AccessorMinecraft.getTimer(RenderUtil.mc).renderPartialTicks);
+        double d3 = RenderUtil.lerpDouble(entity.posY, entity.lastTickPosY, AccessorMinecraft.getTimer(RenderUtil.mc).renderPartialTicks);
+        double d4 = RenderUtil.lerpDouble(entity.posZ, entity.lastTickPosZ, AccessorMinecraft.getTimer(RenderUtil.mc).renderPartialTicks);
+        RenderUtil.drawBoundingBox(entity.getEntityBoundingBox().expand(expand, expand, expand).offset(d2 - entity.posX, d3 - entity.posY, d4 - entity.posZ).offset(-AccessorRenderManager.getRenderPosX(mc.getRenderManager()), -AccessorRenderManager.getRenderPosY(mc.getRenderManager()), -AccessorRenderManager.getRenderPosZ(mc.getRenderManager())), red, green, blue, alpha, lineWidth);
+    }
+    public static void drawBlockBox(BlockPos blockPos, double height, int red, int green, int blue) {
+        RenderUtil.drawFilledBox(new AxisAlignedBB(blockPos.getX(), blockPos.getY(), blockPos.getZ(), (double) blockPos.getX() + 1.0, (double) blockPos.getY() + height, (double) blockPos.getZ() + 1.0).offset(-AccessorRenderManager.getRenderPosX(mc.getRenderManager()), -AccessorRenderManager.getRenderPosY(mc.getRenderManager()), -AccessorRenderManager.getRenderPosZ(mc.getRenderManager())), red, green, blue);
+    }
+    public static void drawBlockBoundingBox(BlockPos blockPos, double height, int red, int green, int blue, int alpha, float lineWidth) {
+        RenderUtil.drawBoundingBox(new AxisAlignedBB(blockPos.getX(), blockPos.getY(), blockPos.getZ(), (double) blockPos.getX() + 1.0, (double) blockPos.getY() + height, (double) blockPos.getZ() + 1.0).offset(-AccessorRenderManager.getRenderPosX(mc.getRenderManager()), -AccessorRenderManager.getRenderPosY(mc.getRenderManager()), -AccessorRenderManager.getRenderPosZ(mc.getRenderManager())), red, green, blue, alpha, lineWidth);
+    }
+    public static void drawCornerESP(EntityPlayer entity, float red, float green, float blue) {
+        float x = (float) (RenderUtil.lerpDouble(entity.posX, entity.lastTickPosX, AccessorMinecraft.getTimer(mc).renderPartialTicks) - AccessorRenderManager.getRenderPosX(mc.getRenderManager()));
+        float y = (float) (RenderUtil.lerpDouble(entity.posY, entity.lastTickPosY, AccessorMinecraft.getTimer(mc).renderPartialTicks) - AccessorRenderManager.getRenderPosY(mc.getRenderManager()));
+        float z = (float) (RenderUtil.lerpDouble(entity.posZ, entity.lastTickPosZ, AccessorMinecraft.getTimer(mc).renderPartialTicks) - AccessorRenderManager.getRenderPosZ(mc.getRenderManager()));
+        GlStateManager.pushMatrix();
+        GlStateManager.translate(x, y + entity.height / 2.0F, z);
+        GlStateManager.rotate(-mc.getRenderManager().playerViewY, 0.0F, 1.0F, 0.0F);
+        GlStateManager.scale(-0.098F, -0.098F, 0.098F);
+        float width = (float) (26.6 * entity.width / 2.0);
+        float height = 12.0F;
+        GlStateManager.color(red, green, blue);
+        draw3DRect(width, height - 1.0F, width - 4.0F, height);
+        draw3DRect(-width, height - 1.0F, -width + 4.0F, height);
+        draw3DRect(-width, height, -width + 1.0F, height - 4.0F);
+        draw3DRect(width, height, width - 1.0F, height - 4.0F);
+        draw3DRect(width, -height, width - 4.0F, -height + 1.0F);
+        draw3DRect(-width, -height, -width + 4.0F, -height + 1.0F);
+        draw3DRect(-width, -height + 1.0F, -width + 1.0F, -height + 4.0F);
+        draw3DRect(width, -height + 1.0F, width - 1.0F, -height + 4.0F);
+        GlStateManager.color(0.0F, 0.0F, 0.0F);
+        draw3DRect(width, height, width - 4.0F, height + 0.2F);
+        draw3DRect(-width, height, -width + 4.0F, height + 0.2F);
+        draw3DRect(-width - 0.2F, height + 0.2F, -width, height - 4.0F);
+        draw3DRect(width + 0.2F, height + 0.2F, width, height - 4.0F);
+        draw3DRect(width + 0.2F, -height, width - 4.0F, -height - 0.2F);
+        draw3DRect(-width - 0.2F, -height, -width + 4.0F, -height - 0.2F);
+        draw3DRect(-width - 0.2F, -height, -width, -height + 4.0F);
+        draw3DRect(width + 0.2F, -height, width, -height + 4.0F);
+        GlStateManager.color(1.0F, 1.0F, 1.0F, 1.0F);
+        GlStateManager.popMatrix();
+    }
+    public static void drawFake2DESP(EntityPlayer entity, float red, float green, float blue) {
+        float x = (float) (RenderUtil.lerpDouble(entity.posX, entity.lastTickPosX, AccessorMinecraft.getTimer(mc).renderPartialTicks) - AccessorRenderManager.getRenderPosX(mc.getRenderManager()));
+        float y = (float) (RenderUtil.lerpDouble(entity.posY, entity.lastTickPosY, AccessorMinecraft.getTimer(mc).renderPartialTicks) - AccessorRenderManager.getRenderPosY(mc.getRenderManager()));
+        float z = (float) (RenderUtil.lerpDouble(entity.posZ, entity.lastTickPosZ, AccessorMinecraft.getTimer(mc).renderPartialTicks) - AccessorRenderManager.getRenderPosZ(mc.getRenderManager()));
+        GlStateManager.pushMatrix();
+        GlStateManager.translate(x, y + entity.height / 2.0F, z);
+        GlStateManager.rotate(-mc.getRenderManager().playerViewY, 0.0F, 1.0F, 0.0F);
+        GlStateManager.scale(-0.1F, -0.1F, 0.1F);
+        GlStateManager.color(red, green, blue);
+        float width = (float) (23.3 * entity.width / 2.0);
+        float height = 12.0F;
+        draw3DRect(width, height, -width, height + 0.4F);
+        draw3DRect(width, -height, -width, -height + 0.4F);
+        draw3DRect(width, -height + 0.4F, width - 0.4F, height + 0.4F);
+        draw3DRect(-width, -height + 0.4F, -width + 0.4F, height + 0.4F);
+        GlStateManager.color(1.0F, 1.0F, 1.0F, 1.0F);
+        GlStateManager.popMatrix();
+    }
+    public static void draw3DRect(float x1, float y1, float x2, float y2) {
+        GL11.glBegin(GL11.GL_POLYGON);
+        GL11.glVertex2f(x2, y1);
+        GL11.glVertex2f(x1, y1);
+        GL11.glVertex2f(x1, y2);
+        GL11.glVertex2f(x2, y2);
+        GL11.glEnd();
+    }
+    public static final class ProjectionContext {
+        private final FloatBuffer modelView = GLAllocation.createDirectFloatBuffer(16);
+        private final FloatBuffer projection = GLAllocation.createDirectFloatBuffer(16);
+        private final IntBuffer viewport = GLAllocation.createDirectIntBuffer(16);
+        private final FloatBuffer screenCoords = GLAllocation.createDirectFloatBuffer(4);
+        private int viewportWidth;
+        private int viewportHeight;
+        private double screenScale = 1.0;
+    }
+
+    public static ProjectionContext captureProjectionContext(ProjectionContext context, int scaledHeight) {
+        if (context == null) {
+            context = new ProjectionContext();
+        }
+        context.modelView.clear();
+        context.projection.clear();
+        context.viewport.clear();
+        GL11.glGetFloat(GL11.GL_MODELVIEW_MATRIX, context.modelView);
+        GL11.glGetFloat(GL11.GL_PROJECTION_MATRIX, context.projection);
+        GL11.glGetInteger(GL11.GL_VIEWPORT, context.viewport);
+        context.modelView.rewind();
+        context.projection.rewind();
+        context.viewport.rewind();
+        context.viewportWidth = context.viewport.get(2);
+        context.viewportHeight = context.viewport.get(3);
+        context.screenScale = (context.viewportHeight > 0 && scaledHeight > 0)
+                ? (double) context.viewportHeight / (double) scaledHeight
+                : 1.0;
+        return context;
+    }
+
+    public static int getContextViewportWidth(ProjectionContext context) {
+        return context == null ? 0 : context.viewportWidth;
+    }
+
+    public static int getContextViewportHeight(ProjectionContext context) {
+        return context == null ? 0 : context.viewportHeight;
+    }
+
+    /**
+     */
+    public static void applyProjectionContext(ProjectionContext context) {
+        context.projection.rewind();
+        context.modelView.rewind();
+        context.viewport.rewind();
+        GL11.glViewport(context.viewport.get(0), context.viewport.get(1),
+                context.viewport.get(2), context.viewport.get(3));
+        GlStateManager.matrixMode(GL11.GL_PROJECTION);
+        GL11.glLoadMatrix(context.projection);
+        GlStateManager.matrixMode(GL11.GL_MODELVIEW);
+        GL11.glLoadMatrix(context.modelView);
+    }
+
+    public static int getBoundFramebuffer() {
+        return GL11.glGetInteger(0x8CA6);
+    }
+
+    public static void bindFramebuffer(int framebufferId) {
+        OpenGlHelper.glBindFramebuffer(OpenGlHelper.GL_FRAMEBUFFER, framebufferId);
+    }
+
+    public static boolean projectTo2D(ProjectionContext context, double x, double y, double z, double[] output) {
+        context.screenCoords.clear();
+        if (!GLU.gluProject((float) x, (float) y, (float) z, context.modelView, context.projection, context.viewport, context.screenCoords)) {
+            return false;
+        }
+        double scale = context.screenScale > 0.0 ? context.screenScale : 1.0;
+        output[0] = (double) context.screenCoords.get(0) / scale;
+        output[1] = (double) context.viewportHeight - (double) context.screenCoords.get(1) / scale;
+        output[2] = context.screenCoords.get(2);
+        return true;
+    }
+
+    private static final double[] PROJECT_POINT = new double[3];
+
+    public static Vector4d projectEntityBoundingBox(ProjectionContext context, Entity entity) {
+        double d3 = RenderUtil.lerpDouble(entity.posX, entity.lastTickPosX, AccessorMinecraft.getTimer(RenderUtil.mc).renderPartialTicks);
+        double d4 = RenderUtil.lerpDouble(entity.posY, entity.lastTickPosY, AccessorMinecraft.getTimer(RenderUtil.mc).renderPartialTicks);
+        double d5 = RenderUtil.lerpDouble(entity.posZ, entity.lastTickPosZ, AccessorMinecraft.getTimer(RenderUtil.mc).renderPartialTicks);
+        AxisAlignedBB axisAlignedBB = entity.getEntityBoundingBox().expand(0.1D, 0.1D, 0.1D).offset(d3 - entity.posX, d4 - entity.posY, d5 - entity.posZ);
+        double renderX = AccessorRenderManager.getRenderPosX(mc.getRenderManager());
+        double renderY = AccessorRenderManager.getRenderPosY(mc.getRenderManager());
+        double renderZ = AccessorRenderManager.getRenderPosZ(mc.getRenderManager());
+        boolean inView = false;
+        double minX = Double.POSITIVE_INFINITY;
+        double minY = Double.POSITIVE_INFINITY;
+        double maxX = Double.NEGATIVE_INFINITY;
+        double maxY = Double.NEGATIVE_INFINITY;
+        for (int corner = 0; corner < 8; corner++) {
+            double x = (corner & 1) == 0 ? axisAlignedBB.minX : axisAlignedBB.maxX;
+            double y = (corner & 2) == 0 ? axisAlignedBB.minY : axisAlignedBB.maxY;
+            double z = (corner & 4) == 0 ? axisAlignedBB.minZ : axisAlignedBB.maxZ;
+            if (!RenderUtil.projectTo2D(context, x - renderX, y - renderY, z - renderZ, RenderUtil.PROJECT_POINT)) {
+                continue;
+            }
+            if (RenderUtil.PROJECT_POINT[2] >= 1.0003684D || RenderUtil.PROJECT_POINT[2] <= 0.0D) {
+                continue;
+            }
+            inView = true;
+            if (RenderUtil.PROJECT_POINT[0] < minX) minX = RenderUtil.PROJECT_POINT[0];
+            if (RenderUtil.PROJECT_POINT[1] < minY) minY = RenderUtil.PROJECT_POINT[1];
+            if (RenderUtil.PROJECT_POINT[0] > maxX) maxX = RenderUtil.PROJECT_POINT[0];
+            if (RenderUtil.PROJECT_POINT[1] > maxY) maxY = RenderUtil.PROJECT_POINT[1];
+        }
+        if (!inView) {
+            return null;
+        }
+        return new Vector4d(minX, minY, maxX, maxY);
+    }
+    public static boolean isInViewFrustum(AxisAlignedBB axisAlignedBB, double expand) {
+        cameraFrustum.setPosition(RenderUtil.mc.getRenderViewEntity().posX, RenderUtil.mc.getRenderViewEntity().posY, RenderUtil.mc.getRenderViewEntity().posZ);
+        return cameraFrustum.isBoundingBoxInFrustum(axisAlignedBB.expand(expand, expand, expand));
+    }
+    public static void enableRenderState() {
+        GlStateManager.enableBlend();
+        GlStateManager.blendFunc(GL11.GL_SRC_ALPHA, GL11.GL_ONE_MINUS_SRC_ALPHA);
+        GlStateManager.disableTexture2D();
+        GlStateManager.disableCull();
+        GlStateManager.disableAlpha();
+        GlStateManager.disableDepth();
+    }
+    public static void disableRenderState() {
+        GlStateManager.enableDepth();
+        GlStateManager.enableAlpha();
+        GlStateManager.enableCull();
+        GlStateManager.enableTexture2D();
+        GlStateManager.disableBlend();
+    }
+    public static void setColor(int argb) {
+        float f = (float) (argb >> 24 & 0xFF) / 255.0f;
+        float f2 = (float) (argb >> 16 & 0xFF) / 255.0f;
+        float f3 = (float) (argb >> 8 & 0xFF) / 255.0f;
+        float f4 = (float) (argb & 0xFF) / 255.0f;
+        GlStateManager.color(f2, f3, f4, f);
+    }
+    public static float lerpFloat(float current, float previous, float t) {
+        return previous + (current - previous) * t;
+    }
+    public static double lerpDouble(double current, double previous, double t) {
+        return previous + (current - previous) * t;
+    }
+    public static final class EnchantmentData {
+        public final String shortName;
+        public final int maxLevel;
+        public EnchantmentData(String shortName, int maxLevel) {
+            this.shortName = shortName;
+            this.maxLevel = maxLevel;
+        }
+    }
+
+    static final class EnchantmentMap extends HashMap<Integer, EnchantmentData> {
+        EnchantmentMap() {
+            this.put(0, new EnchantmentData("Pr", 4));
+            this.put(1, new EnchantmentData("Fp", 4));
+            this.put(2, new EnchantmentData("Ff", 4));
+            this.put(3, new EnchantmentData("Bp", 4));
+            this.put(4, new EnchantmentData("Pp", 4));
+            this.put(5, new EnchantmentData("Re", 3));
+            this.put(6, new EnchantmentData("Aq", 1));
+            this.put(7, new EnchantmentData("Th", 3));
+            this.put(8, new EnchantmentData("Ds", 3));
+            this.put(16, new EnchantmentData("Sh", 5));
+            this.put(17, new EnchantmentData("Sm", 5));
+            this.put(18, new EnchantmentData("BoA", 5));
+            this.put(19, new EnchantmentData("Kb", 2));
+            this.put(20, new EnchantmentData("Fa", 2));
+            this.put(21, new EnchantmentData("Lo", 3));
+            this.put(32, new EnchantmentData("Ef", 5));
+            this.put(33, new EnchantmentData("St", 1));
+            this.put(34, new EnchantmentData("Ub", 3));
+            this.put(35, new EnchantmentData("Fo", 3));
+            this.put(48, new EnchantmentData("Po", 5));
+            this.put(49, new EnchantmentData("Pu", 2));
+            this.put(50, new EnchantmentData("Fl", 1));
+            this.put(51, new EnchantmentData("Inf", 1));
+            this.put(61, new EnchantmentData("LoS", 3));
+            this.put(62, new EnchantmentData("Lu", 3));
+        }
+    }
+}

@@ -1,0 +1,52 @@
+# Gradle
+.gradle/
+build/
+out/
+*.iml
+
+# CMake / MSVC
+myau-natives/build/
+*.dir/
+*.vcxproj*
+*.sln
+CMakeCache.txt
+CMakeFiles/
+
+# Manual MinGW build outputs (exe/dll embed local absolute paths -- rebuild locally)
+myau-natives/build-mingw/*
+!myau-natives/build-mingw/start-server.bat
+!myau-natives/build-mingw/serve.ps1
+
+# Local payload URLs -- see myau-natives/urls.cmake.example
+myau-natives/urls.cmake
+
+# Build output
+dist/
+libs/
+
+# Development run directory -- holds accounts, saves and logs
+run/
+
+# Bundled third-party configs and the download site
+configs/
+dist-web/
+
+# IDE
+.idea/
+.vscode/
+
+# Java
+*.class
+hs_err_pid*
+replay_pid*
+.mtj.tmp/
+
+# Archives
+*.war
+*.nar
+*.ear
+*.tar.gz
+*.rar
+
+# Logs
+*.log
