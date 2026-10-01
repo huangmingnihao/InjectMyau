@@ -11,11 +11,7 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.entity.Entity;
 import net.minecraft.util.MouseHelper;
 
-/**
- * Freelook ported from raven-bS.  Holds the player's body rotation in place while
- * the camera is driven independently by the mouse.  Works through the runtime hook
- * pipeline (no Mixin) so it is usable under Forge, Badlion and Lunar.
- */
+
 public class FreeLook extends Module {
     private static final Minecraft mc = Minecraft.getMinecraft();
 
