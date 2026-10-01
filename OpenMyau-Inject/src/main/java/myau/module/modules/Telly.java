@@ -93,10 +93,6 @@ public class Telly extends Module {
     public void handleUpdate(UpdateEvent event) {
         if (!this.isEnabled()) return;
         if (event.getType() == EventType.PRE) {
-            // Raven/Flux cadence adapted to OpenMyau:
-            // 1) PreUpdate/autoplace still sees the stable rotation from the previous tick.
-            // 2) Then prepare this tick's movement phase and next rotation target.
-            // 3) Submit that scripted yaw to OpenMyau so move-fix and packet rotation use the same frame.
             onPreUpdate();
             if (running) {
                 advanceTellyCycle();
