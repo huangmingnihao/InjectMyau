@@ -119,13 +119,7 @@ public class Velocity extends Module {
     }
 
     private boolean canDelay() {
-        KillAura killAura = (KillAura) Myau.moduleManager.modules.get(KillAura.class);
-        if (!mc.thePlayer.onGround || !killAura.isEnabled()) {
-            return false;
-        }
-        int ab = killAura.autoBlock.getValue();
-        boolean blocking = (ab == 2 || ab == 3) && killAura.isPlayerBlocking() && killAura.isBlocking;
-        return !blocking;
+        return mc.thePlayer.onGround;
     }
 
     private boolean canTriggerDelay() {
@@ -445,6 +439,12 @@ public class Velocity extends Module {
                             || this.isInLiquidOrWeb()
                             || Myau.delayManager.getDelay() >= (long) this.delayTicks.getValue()
             )) {
+                if (this.debugLog.getValue()) {
+                    ChatUtil.sendFormatted(String.format(
+                            "%sDELAY &aend&r &7(delay %d/%d, ground %s)&r",
+                            Myau.clientName, Myau.delayManager.getDelay(),
+                            this.delayTicks.getValue(), mc.thePlayer.onGround));
+                }
                 Myau.delayManager.setDelayState(false, DelayModules.VELOCITY);
                 this.reverseFlag = false;
             }
@@ -570,8 +570,18 @@ public class Velocity extends Module {
                             Myau.delayManager.delayedPacket.offer(packet);
                             event.setCancelled(true);
                             this.reverseFlag = true;
+                            if (this.debugLog.getValue()) {
+                                ChatUtil.sendFormatted(String.format(
+                                        "%sDELAY &astart&r &7(tick %d, ground %s, hurt %d)&r",
+                                        Myau.clientName, mc.thePlayer.ticksExisted,
+                                        mc.thePlayer.onGround, mc.thePlayer.hurtTime));
+                            }
                             return;
                         }
+                    }
+                    if (this.debugLog.getValue() && this.reverseFlag) {
+                        ChatUtil.sendFormatted(String.format(
+                                "%sDELAY &cskip (S12 while delaying)&r", Myau.clientName));
                     }
                     if (this.debugLog.getValue()) {
                         ChatUtil.sendFormatted(
