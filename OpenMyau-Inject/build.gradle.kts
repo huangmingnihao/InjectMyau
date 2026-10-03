@@ -104,6 +104,19 @@ dependencies {
 tasks.withType(JavaCompile::class) {
     options.encoding = "UTF-8"
 }
+val bedDigPathRegression by tasks.registering(JavaExec::class) {
+    group = "verification"
+    description = "Checks BedAura route selection and conservative block tracing."
+    dependsOn(tasks.testClasses)
+    classpath = sourceSets.test.get().output + sourceSets.test.get().compileClasspath
+    javaLauncher.set(javaToolchains.launcherFor {
+        languageVersion.set(JavaLanguageVersion.of(8))
+    })
+    mainClass.set("myau.util.BedDigPathTest")
+}
+tasks.check {
+    dependsOn(bedDigPathRegression)
+}
 tasks.withType(org.gradle.jvm.tasks.Jar::class) {
     archiveBaseName.set(jarName)
     manifest.attributes.run {
