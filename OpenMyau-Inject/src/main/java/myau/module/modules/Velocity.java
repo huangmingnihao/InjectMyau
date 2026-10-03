@@ -558,7 +558,6 @@ public class Velocity extends Module {
                     LongJump longJump = (LongJump) Myau.moduleManager.modules.get(LongJump.class);
                     if (this.mode.getValue() == 2
                             && !this.reverseFlag
-                            && !this.canDelay()
                             && this.canTriggerDelay()
                             && !this.isInLiquidOrWeb()
                             && !this.pendingExplosion
