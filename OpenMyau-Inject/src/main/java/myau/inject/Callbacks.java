@@ -294,10 +294,10 @@ public final class Callbacks {
                 return false;
             }
             Packet<?> packet = (Packet<?>) raw;
-            if (rejectUnregistered(packet)) {
-                return true;
-            }
             if (packet.getClass().getName().startsWith("net.minecraft.network.play.server")) {
+                return false;
+            }
+            if (rejectUnregistered(packet)) {
                 return true;
             }
             PacketEvent event = new PacketEvent(EventType.SEND, packet);
@@ -324,10 +324,10 @@ public final class Callbacks {
                 return false;
             }
             Packet<?> packet = (Packet<?>) raw;
-            if (rejectUnregistered(packet)) {
-                return true;
-            }
             if (packet.getClass().getName().startsWith("net.minecraft.network.play.server")) {
+                return false;
+            }
+            if (rejectUnregistered(packet)) {
                 return true;
             }
             return handOffToManagers(packet);
