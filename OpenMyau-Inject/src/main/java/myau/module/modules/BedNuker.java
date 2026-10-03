@@ -36,11 +36,13 @@ import net.minecraft.network.play.server.S08PacketPlayerPosLook;
 import net.minecraft.network.play.server.S12PacketEntityVelocity;
 import net.minecraft.network.play.server.S27PacketExplosion;
 import net.minecraft.potion.Potion;
+import net.minecraft.util.AxisAlignedBB;
 import net.minecraft.util.BlockPos;
 import net.minecraft.util.EnumFacing;
 import net.minecraft.util.MathHelper;
 import net.minecraft.util.MovingObjectPosition;
 import net.minecraft.util.MovingObjectPosition.MovingObjectType;
+import net.minecraft.util.Vec3;
 import org.lwjgl.opengl.GL11;
 
 import java.awt.*;
@@ -58,6 +60,7 @@ public class BedNuker extends Module {
     private final Color colorYellow = new Color(ChatColors.YELLOW.toAwtColor());
     private final Color colorGreen = new Color(ChatColors.GREEN.toAwtColor());
     private BlockPos targetBed = null;
+    private BedDigPath.Route activePath = null;
     private int breakStage = 0;
     private int tickCounter = 0;
     private float breakProgress = 0.0F;
@@ -72,7 +75,7 @@ public class BedNuker extends Module {
     public final BooleanProperty groundSpeed = new BooleanProperty("ground-spoof", false);
     public final ModeProperty ignoreVelocity = new ModeProperty("ignore-velocity", 0, new String[]{"NONE", "CANCEL", "DELAY"});
     public final BooleanProperty surroundings = new BooleanProperty("surroundings", true);
-    public final BooleanProperty noThroughWall = new BooleanProperty("no-through-wall", false);
+    public final BooleanProperty noThroughWall = new BooleanProperty("no-through-wall", true);
     public final BooleanProperty ignoreOutsideLayer = new BooleanProperty("ignore-outside-layer", true);
     public final BooleanProperty requireClick = new BooleanProperty("require-click", false);
     public final BooleanProperty toolCheck = new BooleanProperty("tool-check", true);
@@ -87,6 +90,7 @@ public class BedNuker extends Module {
             mc.theWorld.sendBlockBreakProgress(mc.thePlayer.getEntityId(), this.targetBed, -1);
         }
         this.targetBed = null;
+        this.activePath = null;
         this.breakStage = 0;
         this.tickCounter = 0;
         this.breakProgress = 0.0F;
@@ -138,6 +142,10 @@ public class BedNuker extends Module {
         }
     }
     private EnumFacing getHitFacing(BlockPos blockPos) {
+        MovingObjectPosition hit = this.findVisibleHit(blockPos);
+        if (hit != null) {
+            return hit.sideHit;
+        }
         double x = (double) blockPos.getX() + 0.5 - mc.thePlayer.posX;
         double y = (double) blockPos.getY() + 0.25 - mc.thePlayer.posY - (double) mc.thePlayer.getEyeHeight();
         double z = (double) blockPos.getZ() + 0.5 - mc.thePlayer.posZ;
@@ -241,181 +249,182 @@ public class BedNuker extends Module {
         return null;
     }
 
-    /**
-     */
-    private boolean isBedExposed(BlockPos bedPosition) {
-        IBlockState blockState = mc.theWorld.getBlockState(bedPosition);
-        if (!(blockState.getBlock() instanceof BlockBed)) {
-            return false;
+    private ArrayList<BlockPos> bedHalves(BlockPos bedPosition) {
+        ArrayList<BlockPos> halves = new ArrayList<BlockPos>();
+        halves.add(bedPosition);
+        IBlockState state = mc.theWorld.getBlockState(bedPosition);
+        if (state.getBlock() instanceof BlockBed) {
+            EnumPartType partType = state.getValue(BlockBed.PART);
+            EnumFacing facing = state.getValue(BlockBed.FACING);
+            BlockPos other = bedPosition.offset(partType == EnumPartType.HEAD ? facing.getOpposite() : facing);
+            if (!other.equals(bedPosition)) {
+                halves.add(other);
+            }
         }
-        EnumPartType partType = blockState.getValue(BlockBed.PART);
-        EnumFacing facing = blockState.getValue(BlockBed.FACING);
-        for (BlockPos half : Arrays.asList(
-                bedPosition,
-                bedPosition.offset(partType == EnumPartType.HEAD ? facing.getOpposite() : facing))) {
-            for (EnumFacing side : Arrays.asList(
-                    EnumFacing.UP, EnumFacing.NORTH, EnumFacing.EAST, EnumFacing.SOUTH, EnumFacing.WEST)) {
-                if (BlockUtil.isReplaceable(mc.theWorld.getBlockState(half.offset(side)).getBlock())) {
-                    return true;
+        return halves;
+    }
+
+    private BlockPos traceBlock(Vec3 start, Vec3 end) {
+        java.util.List<BlockPos> cells = BedDigPath.trace(start, end);
+        for (int i = 0; i < cells.size(); i++) {
+            BlockPos pos = cells.get(i);
+            // Defense cells remain barriers even when a vanilla ray slips through their shape.
+            if (!BlockUtil.isReplaceable(mc.theWorld.getBlockState(pos).getBlock())) {
+                return pos;
+            }
+        }
+        MovingObjectPosition hit = mc.theWorld.rayTraceBlocks(start, end, false, true, false);
+        return hit != null && hit.typeOfHit == MovingObjectType.BLOCK ? hit.getBlockPos() : null;
+    }
+
+    private double[] sampleAxis(double min, double max) {
+        double pad = Math.min(0.08, (max - min) * 0.25);
+        return new double[]{(min + max) * 0.5, min + pad, max - pad};
+    }
+
+    private AxisAlignedBB getTargetBox(BlockPos pos) {
+        Block block = mc.theWorld.getBlockState(pos).getBlock();
+        block.setBlockBoundsBasedOnState(mc.theWorld, pos);
+        return block.getSelectedBoundingBox(mc.theWorld, pos);
+    }
+
+    private MovingObjectPosition findVisibleHit(BlockPos pos) {
+        if (mc.thePlayer == null || mc.theWorld == null || pos == null) {
+            return null;
+        }
+        Vec3 eyes = mc.thePlayer.getPositionEyes(1.0F);
+        AxisAlignedBB box = this.getTargetBox(pos);
+        for (double x : this.sampleAxis(box.minX, box.maxX)) {
+            for (double y : this.sampleAxis(box.minY, box.maxY)) {
+                for (double z : this.sampleAxis(box.minZ, box.maxZ)) {
+                    Vec3 point = new Vec3(x, y, z);
+                    if (this.noThroughWall.getValue() && !pos.equals(this.traceBlock(eyes, point))) {
+                        continue;
+                    }
+                    MovingObjectPosition hit = mc.theWorld.rayTraceBlocks(eyes, point, false, true, false);
+                    if (hit != null && hit.typeOfHit == MovingObjectType.BLOCK && pos.equals(hit.getBlockPos())) {
+                        return hit;
+                    }
                 }
             }
         }
-        return false;
+        return null;
     }
 
-    private static double centerSq(BlockPos from, BlockPos to) {
-        double dx = (from.getX() + 0.5) - (to.getX() + 0.5);
-        double dy = (from.getY() + 0.5) - (to.getY() + 0.5);
-        double dz = (from.getZ() + 0.5) - (to.getZ() + 0.5);
-        return dx * dx + dy * dy + dz * dz;
+    private boolean canSeeBlock(BlockPos pos) {
+        return this.findVisibleHit(pos) != null;
     }
 
-    private static double eyeSq(BlockPos from, double eyeX, double eyeY, double eyeZ) {
-        double dx = (from.getX() + 0.5) - eyeX;
-        double dy = (from.getY() + 0.5) - eyeY;
-        double dz = (from.getZ() + 0.5) - eyeZ;
-        return dx * dx + dy * dy + dz * dz;
-    }
-
-    /**
-     *
-     */
-    private BlockPos findDigTarget(BlockPos bed) {
-        if (this.isBedExposed(bed)) {
-            return bed;
+    private int layersFromBed(BlockPos pos, BlockPos bed) {
+        int best = Integer.MAX_VALUE;
+        for (BlockPos half : this.bedHalves(bed)) {
+            int layer = Math.max(
+                    Math.abs(pos.getX() - half.getX()),
+                    Math.max(Math.abs(pos.getY() - half.getY()), Math.abs(pos.getZ() - half.getZ()))
+            );
+            if (layer < best) {
+                best = layer;
+            }
         }
-        if (!this.surroundings.getValue()) {
-            return bed;
-        }
-        double reach = this.range.getValue().doubleValue();
-        double eyeX = mc.thePlayer.posX;
-        double eyeY = mc.thePlayer.posY + (double) mc.thePlayer.getEyeHeight();
-        double eyeZ = mc.thePlayer.posZ;
-        int radius = (int) Math.min(reach, 8.0);
+        return best;
+    }
 
-        BlockPos bestAir = null;
-        double bestScore = Double.MAX_VALUE;
-        for (int i = bed.getX() - radius; i <= bed.getX() + radius; i++) {
-            for (int j = bed.getY() - radius; j <= bed.getY() + radius; j++) {
-                for (int k = bed.getZ() - radius; k <= bed.getZ() + radius; k++) {
-                    BlockPos airCandidate = new BlockPos(i, j, k);
-                    Block block = mc.theWorld.getBlockState(airCandidate).getBlock();
-                    if (BlockUtil.isReplaceable(block) && !(block instanceof BlockBed)) {
-                        double score = centerSq(airCandidate, bed) + 0.1 * eyeSq(airCandidate, eyeX, eyeY, eyeZ);
-                        if (score < bestScore) {
-                            bestScore = score;
-                            bestAir = airCandidate;
+    private boolean canDigBlock(BlockPos pos) {
+        IBlockState state = mc.theWorld.getBlockState(pos);
+        Block block = state.getBlock();
+        return PlayerUtil.canReach(pos, this.range.getValue().doubleValue())
+                && block.getBlockHardness(mc.theWorld, pos) >= 0.0F
+                && (!this.toolCheck.getValue() || this.hasProperTool(block));
+    }
+
+    private double breakTicks(BlockPos pos) {
+        float strength = this.calcBlockStrength(pos);
+        return strength > 0.0F ? Math.max(1.0, Math.ceil(1.0 / strength)) : Double.POSITIVE_INFINITY;
+    }
+
+    private BedDigPath.Route findDigTarget(BlockPos bed, Map<BlockPos, Boolean> visibility) {
+        Vec3 eyes = mc.thePlayer.getPositionEyes(1.0F);
+        Set<BlockPos> halves = new HashSet<>(this.bedHalves(bed));
+        BedDigPath.Route best = null;
+        int layerLimit = this.ignoreOutsideLayer.getValue() ? 4 : Integer.MAX_VALUE;
+        for (BlockPos half : halves) {
+            if (!(mc.theWorld.getBlockState(half).getBlock() instanceof BlockBed)) {
+                continue;
+            }
+            AxisAlignedBB box = this.getTargetBox(half);
+            for (double x : this.sampleAxis(box.minX, box.maxX)) {
+                for (double y : this.sampleAxis(box.minY, box.maxY)) {
+                    for (double z : this.sampleAxis(box.minZ, box.maxZ)) {
+                        BedDigPath.Route route = BedDigPath.evaluate(
+                                BedDigPath.trace(eyes, new Vec3(x, y, z)),
+                                pos -> BlockUtil.isReplaceable(mc.theWorld.getBlockState(pos).getBlock()),
+                                pos -> this.canDigBlock(pos) && (halves.contains(pos)
+                                        || this.surroundings.getValue() && this.layersFromBed(pos, bed) <= layerLimit
+                                        && !(mc.theWorld.getBlockState(pos).getBlock() instanceof BlockBed)),
+                                halves::contains, this::breakTicks,
+                                pos -> pos.distanceSqToCenter(eyes.xCoord, eyes.yCoord, eyes.zCoord));
+                        if (route != null && (best == null || route.compareTo(best) < 0)
+                                && visibility.computeIfAbsent(route.target, this::canSeeBlock)) {
+                            best = route;
                         }
                     }
                 }
             }
         }
-        if (bestAir == null) {
-            return null;
-        }
-
-        ArrayList<BlockPos> path = new ArrayList<BlockPos>();
-        HashSet<BlockPos> visited = new HashSet<BlockPos>();
-        int cx = bestAir.getX();
-        int cy = bestAir.getY();
-        int cz = bestAir.getZ();
-        int gx = bed.getX();
-        int gy = bed.getY();
-        int gz = bed.getZ();
-        int guard = 0;
-        int limit = (int) (reach * 3.0) + 25;
-        while ((cx != gx || cy != gy || cz != gz) && guard++ <= limit) {
-            BlockPos current = new BlockPos(cx, cy, cz);
-            if (!visited.add(current)) {
-                break;
-            }
-            if (!BlockUtil.isReplaceable(mc.theWorld.getBlockState(current).getBlock())) {
-                path.add(current);
-            }
-            int dx = gx - cx;
-            int dy = gy - cy;
-            int dz = gz - cz;
-            if (Math.abs(dx) >= Math.abs(dy) && Math.abs(dx) >= Math.abs(dz)) {
-                cx += dx > 0 ? 1 : -1;
-            } else if (Math.abs(dz) >= Math.abs(dx) && Math.abs(dz) >= Math.abs(dy)) {
-                cz += dz > 0 ? 1 : -1;
-            } else {
-                cy += dy > 0 ? 1 : -1;
-            }
-            if (!PlayerUtil.isBlockWithinReach(new BlockPos(cx, cy, cz), eyeX, eyeY, eyeZ, reach)) {
-                break;
-            }
-        }
-        path.add(bed);
-        if (this.ignoreOutsideLayer.getValue() && path.size() >= 3) {
-            path.remove(0);
-        }
-        Iterator<BlockPos> it = path.iterator();
-        while (it.hasNext()) {
-            if (BlockUtil.isReplaceable(mc.theWorld.getBlockState(it.next()).getBlock())) {
-                it.remove();
-            }
-        }
-        return path.isEmpty() ? null : path.get(0);
+        return best;
     }
 
-    private BlockPos findNearestBed() {
+    private BedDigPath.Route findNearestBed() {
         return this.findTargetBed(mc.thePlayer.posX, mc.thePlayer.posY + (double) mc.thePlayer.getEyeHeight(), mc.thePlayer.posZ);
     }
-    private BlockPos findTargetBed(double x, double y, double z) {
-        ArrayList<BlockPos> targets = new ArrayList<>();
+
+    private BedDigPath.Route findTargetBed(double x, double y, double z) {
+        Set<BlockPos> visited = new HashSet<>();
+        Map<BlockPos, Boolean> visibility = new HashMap<>();
+        BedDigPath.Route best = null;
         int sX = MathHelper.floor_double(x);
         int sY = MathHelper.floor_double(y);
         int sZ = MathHelper.floor_double(z);
         for (int i = sX - 6; i <= sX + 6; i++) {
             for (int j = sY - 6; j <= sY + 6; j++) {
                 for (int k = sZ - 6; k <= sZ + 6; k++) {
-                    BlockPos newPos = new BlockPos(i, j, k);
-                    if (!(Boolean) this.whiteList.getValue() || !this.bedWhitelist.contains(newPos)) {
-                        Block block = mc.theWorld.getBlockState(newPos).getBlock();
-                        if (block instanceof BlockBed
-                                && PlayerUtil.isBlockWithinReach(newPos, x, y, z, this.range.getValue().doubleValue())) {
-                            targets.add(newPos);
-                        }
-                    }
-                }
-            }
-        }
-        if (targets.isEmpty()) {
-            return null;
-        } else {
-            targets.sort(
-                    Comparator.comparingDouble(
-                            blockPos -> blockPos.distanceSqToCenter(mc.thePlayer.posX, mc.thePlayer.posY + (double) mc.thePlayer.getEyeHeight(), mc.thePlayer.posZ)
-                    )
-            );
-            for (BlockPos blockPos : targets) {
-                BlockPos digTarget;
-                if (this.surroundings.getValue()) {
-                    if (this.noThroughWall.getValue()) {
-                        digTarget = this.findDigTarget(blockPos);
-                    } else {
-                        digTarget = this.validateBedPlacement(blockPos);
-                        if (digTarget == null) {
-                            digTarget = blockPos;
-                        }
-                    }
-                } else {
-                    digTarget = blockPos;
-                }
-                if (digTarget == null) {
-                    continue;
-                }
-                if (!digTarget.equals(blockPos)) {
-                    Block block = mc.theWorld.getBlockState(digTarget).getBlock();
-                    if (this.toolCheck.getValue() && !this.hasProperTool(block)) {
+                    BlockPos bed = new BlockPos(i, j, k);
+                    if (visited.contains(bed) || !(mc.theWorld.getBlockState(bed).getBlock() instanceof BlockBed)) {
                         continue;
                     }
+                    ArrayList<BlockPos> halves = this.bedHalves(bed);
+                    visited.addAll(halves);
+                    if (this.whiteList.getValue() && !Collections.disjoint(halves, this.bedWhitelist)) {
+                        continue;
+                    }
+                    boolean reachable = false;
+                    for (BlockPos half : halves) {
+                        reachable |= PlayerUtil.isBlockWithinReach(half, x, y, z, this.range.getValue().doubleValue());
+                    }
+                    if (!reachable) {
+                        continue;
+                    }
+                    BedDigPath.Route route;
+                    if (this.noThroughWall.getValue()) {
+                        route = this.findDigTarget(bed, visibility);
+                    } else {
+                        BlockPos target = this.surroundings.getValue() ? this.validateBedPlacement(bed) : bed;
+                        if (target == null) {
+                            target = bed;
+                        }
+                        if (!this.canDigBlock(target)) {
+                            continue;
+                        }
+                        route = new BedDigPath.Route(target, this.layersFromBed(target, bed) + 1,
+                                this.breakTicks(target), target.distanceSqToCenter(x, y, z));
+                    }
+                    if (route != null && (best == null || route.compareTo(best) < 0)) {
+                        best = route;
+                    }
                 }
-                return digTarget;
             }
-            return null;
         }
+        return best;
     }
     private void doSwing() {
         if (this.swing.getValue()) {
@@ -469,9 +478,18 @@ public class BedNuker extends Module {
                 if (mc.theWorld.isAirBlock(this.targetBed) || !PlayerUtil.canReach(this.targetBed, this.range.getValue().doubleValue())) {
                     this.restoreSlot();
                     this.resetBreaking();
+                } else if (this.noThroughWall.getValue() && !this.canSeeBlock(this.targetBed)) {
+                    this.restoreSlot();
+                    this.resetBreaking();
                 } else if (!this.isBed) {
-                    BlockPos nearestBed = this.findNearestBed();
-                    if (nearestBed != null && mc.theWorld.getBlockState(nearestBed).getBlock() instanceof BlockBed) {
+                    BedDigPath.Route nearest = this.findNearestBed();
+                    if (nearest != null && !nearest.target.equals(this.targetBed)
+                            && (this.activePath == null || nearest.blocks < this.activePath.blocks
+                            || nearest.blocks == this.activePath.blocks
+                            && nearest.ticks < this.activePath.ticks - this.tickCounter)) {
+                        PacketUtil.sendPacket(new C07PacketPlayerDigging(Action.ABORT_DESTROY_BLOCK,
+                                this.targetBed, this.getHitFacing(this.targetBed)));
+                        this.restoreSlot();
                         this.resetBreaking();
                     }
                 }
@@ -548,7 +566,8 @@ public class BedNuker extends Module {
                 }
             }
             if (mc.thePlayer.capabilities.allowEdit && this.timer.hasTimeElapsed(500)) {
-                this.targetBed = this.findNearestBed();
+                this.activePath = this.findNearestBed();
+                this.targetBed = this.activePath == null ? null : this.activePath.target;
                 this.breakStage = 0;
                 this.tickCounter = 0;
                 this.breakProgress = 0.0F;
@@ -573,9 +592,15 @@ public class BedNuker extends Module {
                 return;
             }
             if (this.isReady()) {
-                double x = (double) this.targetBed.getX() + 0.5 - mc.thePlayer.posX;
-                double y = (double) this.targetBed.getY() + 0.5 - mc.thePlayer.posY - (double) mc.thePlayer.getEyeHeight();
-                double z = (double) this.targetBed.getZ() + 0.5 - mc.thePlayer.posZ;
+                MovingObjectPosition hit = this.findVisibleHit(this.targetBed);
+                if (this.noThroughWall.getValue() && hit == null) {
+                    return;
+                }
+                Vec3 point = hit == null ? new Vec3(this.targetBed.getX() + 0.5,
+                        this.targetBed.getY() + 0.5, this.targetBed.getZ() + 0.5) : hit.hitVec;
+                double x = point.xCoord - mc.thePlayer.posX;
+                double y = point.yCoord - mc.thePlayer.posY - (double) mc.thePlayer.getEyeHeight();
+                double z = point.zCoord - mc.thePlayer.posZ;
                 float[] rotations = RotationUtil.getRotationsTo(x, y, z, event.getYaw(), event.getPitch());
                 event.setRotation(rotations[0], rotations[1], 5);
                 event.setPervRotation(this.moveFix.getValue() != 0 ? rotations[0] : mc.thePlayer.rotationYaw, 5);
