@@ -344,7 +344,16 @@ public final class Callbacks {
      * and sent; anything else is dropped so the encoder does not disconnect.
      */
     private static boolean rejectUnregistered(Packet<?> packet) {
+        if (Minecraft.getMinecraft().isSingleplayer()) {
+            // The integrated server shares this NetworkManager hook. Its
+            // clientbound packets must never be filtered or the client stalls
+            // on chunks and entity updates.
+            return false;
+        }
         if (serverboundId(packet) != null) {
+            return false;
+        }
+        if (clientboundId(packet) != null) {
             return false;
         }
         Packet<?> replacement = copyOntoGameClass(packet);
@@ -380,6 +389,14 @@ public final class Callbacks {
     }
 
     private static Integer serverboundId(Packet<?> packet) {
+        return connectionPacketId(packet, serverbound());
+    }
+
+    private static Integer clientboundId(Packet<?> packet) {
+        return connectionPacketId(packet, clientbound());
+    }
+
+    private static Integer connectionPacketId(Packet<?> packet, EnumPacketDirection bound) {
         try {
             Minecraft mc = Minecraft.getMinecraft();
             if (mc.getNetHandler() == null) {
@@ -399,11 +416,7 @@ public final class Callbacks {
             io.netty.util.AttributeKey<EnumConnectionState> key =
                     (io.netty.util.AttributeKey<EnumConnectionState>) keyField.get(null);
             EnumConnectionState state = channel.attr(key).get();
-            if (state == null) {
-                return Integer.valueOf(0);
-            }
-            EnumPacketDirection bound = serverbound();
-            if (bound == null) {
+            if (state == null || bound == null) {
                 return Integer.valueOf(0);
             }
             for (Method method : state.getClass().getMethods()) {
@@ -426,11 +439,19 @@ public final class Callbacks {
     }
 
     private static EnumPacketDirection serverbound() {
+        return direction("SERVERBOUND", 0);
+    }
+
+    private static EnumPacketDirection clientbound() {
+        return direction("CLIENTBOUND", 1);
+    }
+
+    private static EnumPacketDirection direction(String name, int fallbackIndex) {
         try {
-            return EnumPacketDirection.valueOf("SERVERBOUND");
+            return EnumPacketDirection.valueOf(name);
         } catch (IllegalArgumentException missing) {
             EnumPacketDirection[] values = EnumPacketDirection.values();
-            return values.length == 0 ? null : values[0];
+            return values.length <= fallbackIndex ? null : values[fallbackIndex];
         }
     }
 
