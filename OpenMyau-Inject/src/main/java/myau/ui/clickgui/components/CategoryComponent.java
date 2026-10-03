@@ -54,6 +54,8 @@ public class CategoryComponent {
     private float animationStartBottom;
     private float animationStartNameX;
     public long lastInteractedTime;
+    private boolean openedBeforeSearch;
+    private boolean searchOverride;
     public CategoryComponent(Category category) {
         this.category = category;
         this.scroll.reset(this.y);
@@ -77,6 +79,37 @@ public class CategoryComponent {
     }
     public List<ModuleComponent> getModules() {
         return this.modules;
+    }
+
+    public void applySearch(String query) {
+        String lower = query == null ? "" : query.trim().toLowerCase();
+        boolean filtering = !lower.isEmpty();
+        boolean any = false;
+        for (ModuleComponent component : this.modules) {
+            boolean match = !filtering || component.module.getName().toLowerCase().contains(lower);
+            component.setSearchVisible(match);
+            if (match) {
+                any = true;
+            }
+        }
+        if (filtering) {
+            if (!this.searchOverride) {
+                this.openedBeforeSearch = this.opened;
+                this.searchOverride = true;
+            }
+            if (this.opened != any) {
+                this.opened = any;
+                this.openTimer = null;
+                this.nameTimer = null;
+            }
+            return;
+        }
+        if (this.searchOverride) {
+            this.opened = this.openedBeforeSearch;
+            this.searchOverride = false;
+            this.openTimer = null;
+            this.nameTimer = null;
+        }
     }
     public float getX() {
         return this.x;

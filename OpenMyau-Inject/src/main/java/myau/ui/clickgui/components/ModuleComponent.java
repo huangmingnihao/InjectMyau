@@ -37,6 +37,7 @@ public class ModuleComponent extends Component {
     private boolean hovering;
     private boolean hoverStarted;
     private Timer hoverTimer;
+    private boolean searchVisible = true;
     public ModuleComponent(Module module, CategoryComponent category, float offset) {
         this.module = module;
         this.category = category;
@@ -86,6 +87,17 @@ public class ModuleComponent extends Component {
     public boolean isOpened() {
         return this.opened;
     }
+
+    public void setSearchVisible(boolean visible) {
+        this.searchVisible = visible;
+        if (!visible) {
+            this.hovering = false;
+        }
+    }
+
+    public boolean isSearchVisible() {
+        return this.searchVisible;
+    }
     public void restoreOpenState(boolean opened) {
         this.opened = opened;
         this.openTimer = null;
@@ -96,6 +108,9 @@ public class ModuleComponent extends Component {
     }
     @Override
     public void render() {
+        if (!this.searchVisible) {
+            return;
+        }
         Minecraft mc = Minecraft.getMinecraft();
         float x = this.category.getX();
         float y = this.category.getY() + this.offset;
@@ -141,6 +156,9 @@ public class ModuleComponent extends Component {
     }
     @Override
     public void drawScreen(int mouseX, int mouseY) {
+        if (!this.searchVisible) {
+            return;
+        }
         for (Component setting : this.settings) {
             if (setting.isBaseVisible()) {
                 setting.drawScreen(mouseX, mouseY);
@@ -175,6 +193,9 @@ public class ModuleComponent extends Component {
     }
     @Override
     public boolean onClick(int mouseX, int mouseY, int button) {
+        if (!this.searchVisible) {
+            return false;
+        }
         if (this.overName(mouseX, mouseY)) {
             if (button == 0) {
                 this.module.toggle();
@@ -260,9 +281,15 @@ public class ModuleComponent extends Component {
     }
     @Override
     public float getHeightF() {
+        if (!this.searchVisible) {
+            return 0.0F;
+        }
         return ROW_HEIGHT + this.animatedSettingsHeight;
     }
     public float getScrollExtentHeightF() {
+        if (!this.searchVisible) {
+            return 0.0F;
+        }
         return ROW_HEIGHT + (this.opened ? this.settingsHeight() : 0.0F);
     }
     private float settingsHeight() {
