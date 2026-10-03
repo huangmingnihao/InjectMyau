@@ -23,9 +23,17 @@ import java.util.List;
 /**
  */
 public class RavenClickGui extends GuiScreen implements ClickGuiScreen {
+    private static final float SEARCH_WIDTH = 260.0F;
+    private static final float SEARCH_HEIGHT = 18.0F;
+    private static final int SEARCH_TEXT = new Color(220, 220, 220).getRGB();
+    private static final int SEARCH_HINT = new Color(140, 140, 140).getRGB();
+    private static final int SEARCH_FILL = new Color(0, 0, 0, 140).getRGB();
+    private static final int SEARCH_FOCUS = new Color(24, 154, 255).getRGB();
     private static RavenClickGui instance;
     private final List<CategoryComponent> categories = new ArrayList<CategoryComponent>();
     private final File file = new File("./config/Myau/", "clickgui.txt");
+    private String search = "";
+    private boolean searchFocused;
     public RavenClickGui() {
         instance = this;
         Categories.verifyComplete();
@@ -77,6 +85,9 @@ public class RavenClickGui extends GuiScreen implements ClickGuiScreen {
         this.mc.fontRendererObj.drawStringWithShadow("Myau Inject " + Myau.version,
                 4, this.height - 3 - this.mc.fontRendererObj.FONT_HEIGHT,
                 new Color(60, 162, 253).getRGB());
+        for (CategoryComponent panel : this.categories) {
+            panel.applySearch(this.search);
+        }
         List<CategoryComponent> order = this.inRenderOrder();
         CategoryComponent topmost = this.topmostUnder(order, mouseX, mouseY);
         for (CategoryComponent panel : order) {
@@ -84,6 +95,7 @@ public class RavenClickGui extends GuiScreen implements ClickGuiScreen {
             panel.mousePosition(mouseX, mouseY, panel == topmost);
             panel.drawScreen(mouseX, mouseY);
         }
+        this.drawSearch();
         int wheel = Mouse.getDWheel();
         if (wheel != 0) {
             for (CategoryComponent panel : this.categories) {
@@ -94,6 +106,11 @@ public class RavenClickGui extends GuiScreen implements ClickGuiScreen {
     }
     @Override
     protected void mouseClicked(int mouseX, int mouseY, int button) {
+        if (this.overSearch(mouseX, mouseY)) {
+            this.searchFocused = true;
+            return;
+        }
+        this.searchFocused = false;
         List<CategoryComponent> order = this.inRenderOrder();
         CategoryComponent target = this.topmostUnder(order, mouseX, mouseY);
         if (target == null) {
@@ -137,6 +154,20 @@ public class RavenClickGui extends GuiScreen implements ClickGuiScreen {
                 }
             }
         }
+        if (this.searchFocused) {
+            if (key == Keyboard.KEY_ESCAPE) {
+                this.searchFocused = false;
+                return;
+            }
+            if (key == Keyboard.KEY_BACK && !this.search.isEmpty()) {
+                this.search = this.search.substring(0, this.search.length() - 1);
+                return;
+            }
+            if (typed >= 32 && typed != 127 && this.search.length() < 64) {
+                this.search = this.search + typed;
+            }
+            return;
+        }
         for (CategoryComponent panel : this.categories) {
             for (ModuleComponent module : panel.getModules()) {
                 module.keyTyped(typed, key);
@@ -146,8 +177,41 @@ public class RavenClickGui extends GuiScreen implements ClickGuiScreen {
             this.mc.displayGuiScreen(null);
         }
     }
+
+    private float searchX() {
+        return (this.width - SEARCH_WIDTH) / 2.0F;
+    }
+
+    private float searchY() {
+        return this.height - 8.0F - SEARCH_HEIGHT;
+    }
+
+    private boolean overSearch(int mouseX, int mouseY) {
+        float x = this.searchX();
+        float y = this.searchY();
+        return mouseX >= x && mouseX <= x + SEARCH_WIDTH && mouseY >= y && mouseY <= y + SEARCH_HEIGHT;
+    }
+
+    private void drawSearch() {
+        float x = this.searchX();
+        float y = this.searchY();
+        GuiRender.drawRoundedRect(x, y, x + SEARCH_WIDTH, y + SEARCH_HEIGHT, 4.0F, SEARCH_FILL);
+        if (this.searchFocused) {
+            GuiRender.drawRoundedRect(x, y + SEARCH_HEIGHT - 2.0F, x + SEARCH_WIDTH, y + SEARCH_HEIGHT,
+                    1.0F, SEARCH_FOCUS);
+        }
+        String shown = this.search;
+        int colour = SEARCH_TEXT;
+        if (shown.isEmpty()) {
+            shown = "Search";
+            colour = SEARCH_HINT;
+        }
+        float textY = y + (SEARCH_HEIGHT - this.mc.fontRendererObj.FONT_HEIGHT) / 2.0F;
+        this.mc.fontRendererObj.drawStringWithShadow(shown, x + 6.0F, textY, colour);
+    }
     @Override
     public void onGuiClosed() {
+        this.searchFocused = false;
         for (CategoryComponent panel : this.categories) {
             panel.onGuiClosed();
         }
