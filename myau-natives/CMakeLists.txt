@@ -150,8 +150,8 @@ if(MSVC)
 endif()
 
 if(MSVC)
-    target_compile_options(myau_native PRIVATE /W3 /EHsc)
-    target_compile_options(myau_loader PRIVATE /W3 /EHsc)
+    target_compile_options(myau_native PRIVATE /W3 /EHsc /utf-8)
+    target_compile_options(myau_loader PRIVATE /W3 /EHsc /utf-8)
 
     set_property(TARGET myau_native PROPERTY MSVC_RUNTIME_LIBRARY "MultiThreaded")
     set_property(TARGET myau_loader PROPERTY MSVC_RUNTIME_LIBRARY "MultiThreaded")
