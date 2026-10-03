@@ -220,6 +220,7 @@ public class InvManager extends Module {
                         if (this.dropTrash.getValue()) {
                             int currentBlockCount = this.getStackSize(inventoryBlocksSlot);
                             int currentProjectileCount = this.getStackSize(inventoryProjectileSlot);
+                            int currentArrowCount = 0;
                             for (int i = 0; i < 36; i++) {
                                 if (!equippedArmorSlots.contains(i)
                                         && !inventoryArmorSlots.contains(i)
@@ -235,15 +236,20 @@ public class InvManager extends Module {
                                     if (stack != null) {
                                         boolean isBlock = ItemUtil.isBlock(stack);
                                         boolean isProjectile = ItemUtil.isProjectile(stack);
+                                        boolean isArrow = ItemUtil.ItemType.Arrow.contains(stack);
                                         if (isBlock) {
                                             currentBlockCount += stack.stackSize;
                                         }
                                         if (isProjectile) {
                                             currentProjectileCount += stack.stackSize;
                                         }
+                                        if (isArrow) {
+                                            currentArrowCount += stack.stackSize;
+                                        }
                                         if (isBlock ? currentBlockCount > this.blocks.getValue() :
                                                 isProjectile ? currentProjectileCount > this.projectiles.getValue() :
-                                                        ItemUtil.isNotSpecialItem(stack)) {
+                                                        isArrow ? currentArrowCount > this.arrow.getValue() :
+                                                                ItemUtil.isNotSpecialItem(stack)) {
                                             this.clickSlot(mc.thePlayer.inventoryContainer.windowId, this.convertSlotIndex(i), 1, 4);
                                             return;
                                         }
