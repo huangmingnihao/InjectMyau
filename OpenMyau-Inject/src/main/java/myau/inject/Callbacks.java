@@ -15,6 +15,7 @@ import myau.events.PrePlayerInteractEvent;
 import myau.events.UseItemEvent;
 import myau.module.modules.InventoryMove;
 import myau.events.Render2DEvent;
+import myau.events.Render2DFrameEvent;
 import myau.events.Render2DPostEvent;
 import myau.events.Render3DEvent;
 import myau.events.TickEvent;
@@ -46,6 +47,7 @@ public final class Callbacks {
     private static final Set<String> REPORTED_UNREGISTERED =
             Collections.synchronizedSet(new HashSet<String>());
     private static float overlayPartialTicks;
+    private static float framePartialTicks;
     private static float worldPartialTicks;
     private static int lastKey;
     private static boolean lastPressed;
@@ -72,6 +74,18 @@ public final class Callbacks {
 
     public static void render2DPre(float partialTicks) {
         overlayPartialTicks = partialTicks;
+    }
+    public static void renderFramePre(float partialTicks) {
+        framePartialTicks = partialTicks;
+    }
+    public static void renderFramePost() {
+        try {
+            if (Bootstrap.isStarted() && GameState.inGame()) {
+                EventManager.call(new Render2DFrameEvent(framePartialTicks));
+            }
+        } catch (Throwable swallowed) {
+            Log.swallowed(swallowed);
+        }
     }
     public static void render2DPost() {
         try {
