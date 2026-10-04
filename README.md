@@ -93,7 +93,10 @@ Enable **Radar** in the render category. `range` controls the horizontal distanc
 `orientation` supports **HEADING** (forward is up) and **NORTH** (north stays up).
 Radar draws at the end of each camera frame, independently of the launcher's HUD caching.
 
-The distance rings, center arrow, height chevrons (3+ blocks above/below), nearby player count
+The distance rings mark 25%, 50%, 75% and 100% of the selected range without numeric labels.
+The compass and crosshair rotate together and use a consistent style. Compass letters sit
+close to the visible outer ring; `show-compass` toggles them (enabled by default).
+The center arrow, height chevrons (3+ blocks above/below), nearby player count
 and nearest-player highlight make contacts easier to read. `show-names` and `show-distance`
 enable labels for up to four nearby players, skipping overlapping labels. `show-outside`
 adds dim direction arrows for loaded players beyond the selected range, up to 512 blocks;
@@ -101,7 +104,8 @@ it is off by default to keep the edge clear. Distances and counts use the horizo
 and respect the player/friend/enemy/bot filters. Radar only displays players loaded by the game.
 
 Position indices remain 0 = top left, 1 = top right, 2 = bottom left, 3 = bottom right,
-4 = screen center. Offsets place the radar center; its bounds stay on screen when space allows.
+4 = screen center. In the four corner modes, offsets place the radar center directly without
+automatic boundary clamping. Center mode stays centered and does not use offsets.
 Existing configs keep their saved colors and positions.
 
 ### If something goes wrong

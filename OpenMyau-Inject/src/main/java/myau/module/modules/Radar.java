@@ -45,6 +45,7 @@ public class Radar extends Module {
     public final BooleanProperty showHeight = new BooleanProperty("show-height", true);
     public final BooleanProperty showNames = new BooleanProperty("show-names", false);
     public final BooleanProperty showDistance = new BooleanProperty("show-distance", false);
+    public final BooleanProperty showCompass = new BooleanProperty("show-compass", true);
     public final BooleanProperty showInfo = new BooleanProperty("show-info", true);
     public final BooleanProperty showPVP = new BooleanProperty("show-pvp", false);
     public final IntProperty opacity = new IntProperty("opacity", 100, 0, 255);
@@ -120,18 +121,8 @@ public class Radar extends Module {
         ScaledResolution sr = new ScaledResolution(mc);
         float uiScale = Math.max(0.5F, Math.min(3.0F, scale.getValue()));
         // Translate in screen coordinates before scaling to keep the anchor fixed.
-        double centerX = position.getValue() == 4 ? sr.getScaledWidth() / 2.0
-                : (position.getValue() & 1) != 0 ? sr.getScaledWidth() - offsetX.getValue() : offsetX.getValue();
-        double centerY = position.getValue() == 4 ? sr.getScaledHeight() / 2.0
-                : (position.getValue() & 2) != 0 ? sr.getScaledHeight() - offsetY.getValue() : offsetY.getValue();
-        double horizontalMargin = radius + 12.0;
-        if (showInfo.getValue()) {
-            horizontalMargin = Math.max(horizontalMargin,
-                    Math.max(mc.fontRendererObj.getStringWidth(summary), mc.fontRendererObj.getStringWidth(nearestText)) / 2.0 + 4.0);
-        }
-        centerX = RadarProjection.clampCenter(centerX, horizontalMargin * uiScale, horizontalMargin * uiScale, sr.getScaledWidth());
-        double bottomMargin = (radius + (showInfo.getValue() ? 33.0 : 12.0)) * uiScale;
-        centerY = RadarProjection.clampCenter(centerY, (radius + 12.0) * uiScale, bottomMargin, sr.getScaledHeight());
+        RadarProjection.Anchor anchor = RadarProjection.anchor(position.getValue(), offsetX.getValue(),
+                offsetY.getValue(), sr.getScaledWidth(), sr.getScaledHeight());
 
         boolean lineSmooth = GL11.glIsEnabled(GL11.GL_LINE_SMOOTH);
         float lineWidth = GL11.glGetFloat(GL11.GL_LINE_WIDTH);
@@ -157,18 +148,18 @@ public class Radar extends Module {
             GlStateManager.matrixMode(GL11.GL_MODELVIEW);
             GlStateManager.loadIdentity();
             GlStateManager.translate(0.0, 0.0, -2000.0);
-            GlStateManager.translate(centerX, centerY, 0.0);
+            GlStateManager.translate(anchor.x, anchor.y, 0.0);
             GlStateManager.scale(uiScale, uiScale, 1.0F);
             GlStateManager.disableLighting();
             GL11.glDisable(GL11.GL_SCISSOR_TEST);
             RenderUtil.enableRenderState();
             GL11.glEnable(GL11.GL_LINE_SMOOTH);
-            drawBackground(radius, plotRadius);
+            drawBackground(plotRadius, rotation);
             double selfAngle = orientation.getValue() == 0 ? -Math.PI / 2.0 : yaw + Math.PI / 2.0;
             drawViewCone(plotRadius, selfAngle, accent);
             for (Contact contact : contacts) drawContact(contact, contact == nearest);
             drawArrow(0, 0, selfAngle, 4.0, Color.WHITE.getRGB());
-            drawCompass(radius + 7.0, rotation, accent);
+            if (showCompass.getValue()) drawCompass(plotRadius + 7.0, rotation);
 
             // Only label the closest few contacts, keeping labels inside the circle.
             if (showNames.getValue() || showDistance.getValue()) {
@@ -207,19 +198,22 @@ public class Radar extends Module {
         }
     }
 
-    private void drawBackground(double radius, double plotRadius) {
-        RenderUtil.fillCircle(0, 0, radius, 96, withAlpha(fillColor.getValue(), opacity.getValue()));
+    private void drawBackground(double plotRadius, double rotation) {
+        RenderUtil.fillCircle(0, 0, plotRadius, 96, withAlpha(fillColor.getValue(), opacity.getValue()));
         geometry();
-        drawRing(0, 0, radius, withAlpha(outlineColor.getValue(), 220));
-        drawRing(0, 0, plotRadius, withAlpha(crossColor.getValue(), 65));
-        drawRing(0, 0, plotRadius / 2.0, withAlpha(crossColor.getValue(), 65));
-        RenderUtil.setColor(withAlpha(crossColor.getValue(), 65));
+        // Use the same range radius as contacts: quarters are equally spaced.
+        // Keep the fill and outline on this radius too, without an outer shaded band.
+        for (int quarter = 1; quarter < 4; quarter++) {
+            drawRing(0, 0, plotRadius * quarter / 4.0, withAlpha(crossColor.getValue(), 65));
+        }
+        drawRing(0, 0, plotRadius, withAlpha(outlineColor.getValue(), 220));
+        RadarProjection.Point north = RadarProjection.project(0, -1, rotation, 1, plotRadius);
+        RadarProjection.Point east = RadarProjection.project(1, 0, rotation, 1, plotRadius);
+        RenderUtil.setColor(withAlpha(crossColor.getValue(), 45));
         GL11.glBegin(GL11.GL_LINES);
-        GL11.glVertex2d(-plotRadius, 0); GL11.glVertex2d(plotRadius, 0);
-        GL11.glVertex2d(0, -plotRadius); GL11.glVertex2d(0, plotRadius);
+        GL11.glVertex2d(-north.x, -north.y); GL11.glVertex2d(north.x, north.y);
+        GL11.glVertex2d(-east.x, -east.y); GL11.glVertex2d(east.x, east.y);
         GL11.glEnd();
-        if (radius >= 30) drawText(getRingLabel(), 3, -plotRadius / 2.0 + 2,
-                withAlpha(crossColor.getValue(), 180), false);
     }
 
     private void drawViewCone(double radius, double angle, int color) {
@@ -260,13 +254,13 @@ public class Radar extends Module {
         }
     }
 
-    private void drawCompass(double radius, double rotation, int color) {
+    private void drawCompass(double radius, double rotation) {
         String[] directions = {"N", "E", "S", "W"};
         double[] dx = {0, 1, 0, -1}, dz = {-1, 0, 1, 0};
         for (int i = 0; i < directions.length; i++) {
             RadarProjection.Point p = RadarProjection.project(dx[i], dz[i], rotation, 1.0, radius);
             drawText(directions[i], p.x, p.y - mc.fontRendererObj.FONT_HEIGHT / 2.0,
-                    i == 0 ? color : 0xFFCAD5E2, true);
+                    withAlpha(crossColor.getValue(), 220), true);
         }
     }
 
@@ -283,10 +277,6 @@ public class Radar extends Module {
         if (width > halfWidth * 2.0) return;
         double x = Math.max(-halfWidth, Math.min(halfWidth - width, point.x - width / 2.0));
         if (x < 6 && x + width > -6 && y < 6 && y + height > -6) return;
-        double legendY = -getPlotRadius(radius) / 2.0 + 2.0;
-        double legendWidth = mc.fontRendererObj.getStringWidth(getRingLabel());
-        if (radius >= 30 && x < 3 + legendWidth && x + width > 3
-                && y < legendY + mc.fontRendererObj.FONT_HEIGHT && y + height > legendY) return;
         for (double[] box : occupied) {
             if (x < box[2] + 2 && x + width + 2 > box[0] && y < box[3] + 2 && y + height + 2 > box[1]) return;
         }
@@ -347,11 +337,6 @@ public class Radar extends Module {
 
     private double getDotSize(double radius) {
         return Math.max(0.5, Math.min(Math.min(5.0, dotRadius.getValue()), radius / 4.0));
-    }
-
-    private String getRingLabel() {
-        int blocks = range.getValue();
-        return blocks / 2 + (blocks % 2 == 0 ? "m" : ".5m");
     }
 
     private double getPlotRadius(double radius) {
