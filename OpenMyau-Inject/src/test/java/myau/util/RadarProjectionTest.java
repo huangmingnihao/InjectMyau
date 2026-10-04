@@ -24,10 +24,20 @@ public final class RadarProjectionTest {
         close(RadarProjection.project(0, 32, 0, 128, 54).y, -13.5);
         close(RadarProjection.project(0, 32, 0, 64, 108).y, -54);
 
-        close(RadarProjection.clampCenter(80, 72, 93, 320), 80);
-        close(RadarProjection.clampCenter(5, 72, 93, 320), 72);
-        close(RadarProjection.clampCenter(315, 72, 93, 320), 227);
-        close(RadarProjection.clampCenter(5, 200, 220, 320), 160);
+        // Tiny offsets and small screens must not pin all positions to a padded boundary.
+        for (int position = 0; position < 4; position++) {
+            for (int offset = 0; offset <= 80; offset++) {
+                RadarProjection.Anchor anchor = RadarProjection.anchor(position, offset, offset, 100, 80);
+                close(anchor.x, (position & 1) != 0 ? 100 - offset : offset);
+                close(anchor.y, (position & 2) != 0 ? 80 - offset : offset);
+            }
+        }
+        RadarProjection.Anchor offscreen = RadarProjection.anchor(3, 150, 120, 100, 80);
+        close(offscreen.x, -50);
+        close(offscreen.y, -40);
+        RadarProjection.Anchor centered = RadarProjection.anchor(4, 5, 500, 320, 240);
+        close(centered.x, 160);
+        close(centered.y, 120);
         try {
             RadarProjection.project(0, 0, 0, 0, 54);
             throw new AssertionError("zero range must be rejected");

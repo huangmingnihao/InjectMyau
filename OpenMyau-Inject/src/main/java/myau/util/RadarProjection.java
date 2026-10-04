@@ -16,9 +16,22 @@ public final class RadarProjection {
                 (dx * sin - dz * cos) * factor, distance, distance > range);
     }
 
-    public static double clampCenter(double center, double before, double after, double screenSize) {
-        if (before + after > screenSize) return screenSize / 2.0;
-        return Math.max(before, Math.min(screenSize - after, center));
+    /** Offset is the requested center coordinate, even when the radar extends off screen. */
+    public static Anchor anchor(int position, double offsetX, double offsetY, double width, double height) {
+        if (position < 0 || position > 4) throw new IllegalArgumentException("Invalid radar position");
+        if (position == 4) return new Anchor(width / 2.0, height / 2.0);
+        return new Anchor((position & 1) != 0 ? width - offsetX : offsetX,
+                (position & 2) != 0 ? height - offsetY : offsetY);
+    }
+
+    public static final class Anchor {
+        public final double x;
+        public final double y;
+
+        private Anchor(double x, double y) {
+            this.x = x;
+            this.y = y;
+        }
     }
 
     public static final class Point {
