@@ -118,10 +118,12 @@ public class Velocity extends Module {
         return mc.thePlayer.isInWater() || mc.thePlayer.isInLava() || AccessorEntity.getIsInWeb(mc.thePlayer);
     }
 
+    // 释放条件：落地（或液体/网中、或达到最大延迟 tick）才释放缓存包
     private boolean canDelay() {
         return mc.thePlayer.onGround;
     }
 
+    // DELAY 触发门槛：三个开关全满足才允许 delay（独立于 canDelay，避免逻辑取反陷阱）
     private boolean canTriggerDelay() {
         if (this.lookingAtPlayer.getValue() && !isAimingAtPlayer()) {
             return false;
@@ -559,6 +561,7 @@ public class Velocity extends Module {
                     if (this.mode.getValue() == 2
                             && !this.reverseFlag
                             && this.canTriggerDelay()
+                            && !this.canDelay()
                             && !this.isInLiquidOrWeb()
                             && !this.pendingExplosion
                             && (!this.allowNext || !(Boolean) this.fakeCheck.getValue())

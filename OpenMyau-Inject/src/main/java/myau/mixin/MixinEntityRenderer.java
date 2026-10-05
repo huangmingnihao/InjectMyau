@@ -6,6 +6,7 @@ import myau.event.EventManager;
 import myau.events.PickEvent;
 import myau.events.RaytraceEvent;
 import myau.events.Render3DEvent;
+import myau.events.Render2DFrameEvent;
 import myau.module.modules.*;
 import net.minecraft.block.Block;
 import net.minecraft.block.material.Material;
@@ -82,6 +83,9 @@ public abstract class MixinEntityRenderer {
         if (this.useCount != null) {
             ((IAccessorEntityPlayer) this.mc.thePlayer).setItemInUseCount(this.useCount.value);
             this.useCount = null;
+        }
+        if (Myau.moduleManager != null) {
+            EventManager.call(new Render2DFrameEvent(float1));
         }
     }
 

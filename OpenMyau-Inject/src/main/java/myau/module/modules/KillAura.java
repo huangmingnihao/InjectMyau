@@ -496,6 +496,8 @@ public class KillAura extends Module {
                 else this.isBlocking = false;
                 this.fakeBlockState = false;
                 this.blockTick = 0;
+                // 本模块发起的格挡已无意图、且玩家物理上没有按住右键时，主动解除，
+                // 避免 blockingState / isUsingItem 残留把后续所有攻击全部闸掉。
                 if (this.blockingState && !PlayerUtil.isUsingItem()) {
                     this.stopBlock();
                 }
@@ -506,6 +508,8 @@ public class KillAura extends Module {
                 if (block) {
                     switch (this.autoBlock.getValue()) {
                         case 0:
+                            // allowPlayerBlocking=false 时右键已被 onRightClick 拦截，
+                            // 这里也不再代理格挡 → 玩家按右键完全无格挡（保持该属性语义）。
                             if (PlayerUtil.isUsingItem() && this.allowPlayerBlocking.getValue()) {
                                 this.isBlocking = true;
                                 if (!this.isPlayerBlocking() && !Myau.playerStateManager.digging && !Myau.playerStateManager.placing) {
@@ -1001,12 +1005,12 @@ public class KillAura extends Module {
                             rotations = nearestRotation(box, currentYaw, currentPitch, angleStep, smooth);
                         } else if (mode == 2) {
                             if (this.isNormalTargetVisible(box)) {
-                                rotations = RotationUtil.getRotationsToBox(box, currentYaw, currentPitch, angleStep, smooth);
+                                rotations = normalRotation(box, currentYaw, currentPitch, angleStep, smooth);
                             } else {
                                 rotations = nearestRotation(box, currentYaw, currentPitch, angleStep, smooth);
                             }
                         } else {
-                            rotations = RotationUtil.getRotationsToBox(box, currentYaw, currentPitch, angleStep, smooth);
+                            rotations = normalRotation(box, currentYaw, currentPitch, angleStep, smooth);
                         }
                         if (rotations != null) {
                             event.setRotation(rotations[0], rotations[1], 1);
@@ -1171,6 +1175,9 @@ public class KillAura extends Module {
         if (this.isBlocking) {
             event.setCancelled(true);
         } else {
+            // 对齐 anti：有目标可攻击时一律拦下原版右键（不再看 allowPlayerBlocking），
+            // 格挡改由模块在攻击后代理发起，否则玩家一按右键就进入原版格挡，
+            // isPlayerBlocking() 恒真 → 攻击门控永远失败（挡死且打不了人）。
             if (this.isEnabled() && this.target != null && this.canAttack()) {
                 event.setCancelled(true);
             }
@@ -1190,6 +1197,10 @@ public class KillAura extends Module {
 
     @EventTarget
     public void onCancelUse(CancelUseEvent event) {
+        // 只保护"本模块自己发起的格挡"（blockingState 表示我们发过 C08 并 setItemInUse）。
+        // 玩家自己长按右键产生的格挡必须允许原版正常解除，否则单击右键（快速按下-松开）后
+        // mc.thePlayer.isUsingItem() 会永久卡在 true → isPlayerBlocking() 恒真
+        // → 一直保持格挡且再也打不到人。
         if (this.isBlocking && this.blockingState) {
             event.setCancelled(true);
         }
@@ -1271,6 +1282,40 @@ public class KillAura extends Module {
         );
         float pitchDelta = MathHelper.wrapAngleTo180_float(
                 (float) (-Math.atan2(diffY, horizontalDist) * 180.0 / Math.PI) - currentPitch
+        );
+        yawDelta = Math.abs(yawDelta) <= 1.0f
+                ? 0.0f
+                : smoothAngle(clampAngle(yawDelta, maxAngle), smoothFactor);
+        pitchDelta = Math.abs(pitchDelta) <= 1.0f
+                ? 0.0f
+                : smoothAngle(clampAngle(pitchDelta, maxAngle), smoothFactor);
+        return new float[]{
+                quantizeAngle(currentYaw + yawDelta),
+                quantizeAngle(currentPitch + pitchDelta)
+        };
+    }
+
+    // 对齐 Leader-Lite 的 getRotationsToBox：X/Z 取包围盒中心，Y 把眼睛高度钳制在包围盒高度的 5%~75%
+    // （眼睛高于 75% 时瞄准 75% 处、低于 5% 时瞄准 5% 处，处于区间内则水平瞄准），与 Lock View 下可见的转头位置一致
+    private static float[] normalRotation(AxisAlignedBB box, float currentYaw, float currentPitch,
+                                          float maxAngle, float smoothFactor) {
+        if (mc.thePlayer == null) {
+            return null;
+        }
+        Vec3 eyePos = mc.thePlayer.getPositionEyes(1.0F);
+        double minTargetY = box.minY + 0.05 * (box.maxY - box.minY);
+        double maxTargetY = box.minY + 0.75 * (box.maxY - box.minY);
+        double deltaX = (box.minX + box.maxX) / 2.0 - eyePos.xCoord;
+        double deltaY = eyePos.yCoord >= maxTargetY
+                ? maxTargetY - eyePos.yCoord
+                : (eyePos.yCoord <= minTargetY ? minTargetY - eyePos.yCoord : 0.0);
+        double deltaZ = (box.minZ + box.maxZ) / 2.0 - eyePos.zCoord;
+        double horizontalDist = Math.sqrt(deltaX * deltaX + deltaZ * deltaZ);
+        float yawDelta = MathHelper.wrapAngleTo180_float(
+                (float) (Math.atan2(deltaZ, deltaX) * 180.0 / Math.PI) - 90.0f - currentYaw
+        );
+        float pitchDelta = MathHelper.wrapAngleTo180_float(
+                (float) (-Math.atan2(deltaY, horizontalDist) * 180.0 / Math.PI) - currentPitch
         );
         yawDelta = Math.abs(yawDelta) <= 1.0f
                 ? 0.0f

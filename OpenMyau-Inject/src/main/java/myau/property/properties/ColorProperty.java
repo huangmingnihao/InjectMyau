@@ -21,7 +21,7 @@ public class ColorProperty extends Property<Integer> {
 
     @Override
     public String formatValue() {
-        String hex = String.format("%06X", this.getValue()).substring(0,6);
+        String hex = String.format("%06X", this.getValue() & 0xFFFFFF);
         return String.format("&c%s&a%s&9%s", hex.substring(0, 2), hex.substring(2, 4), hex.substring(4, 6));
     }
 
@@ -32,11 +32,16 @@ public class ColorProperty extends Property<Integer> {
 
     @Override
     public boolean read(JsonObject jsonObject) {
-        return this.parseString(jsonObject.get(this.getName()).getAsString().substring(0,6));
+        String hex = jsonObject.get(this.getName()).getAsString().trim();
+        if (hex.startsWith("#")) hex = hex.substring(1);
+        // Older configs stored Color.getRGB() as AARRGGBB. Preserve RGB, not alpha.
+        if (hex.length() == 8) hex = hex.substring(2);
+        if (hex.length() != 6) return false;
+        return this.parseString(hex);
     }
 
     @Override
     public void write(JsonObject jsonObject) {
-        jsonObject.addProperty(this.getName(), String.format("%06X", this.getValue()));
+        jsonObject.addProperty(this.getName(), String.format("%06X", this.getValue() & 0xFFFFFF));
     }
 }
