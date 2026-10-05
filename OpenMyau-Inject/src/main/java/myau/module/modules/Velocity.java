@@ -139,7 +139,6 @@ public class Velocity extends Module {
         super("Velocity", false);
     }
 
-
     public boolean isAttackReduceActive() {
         return this.isEnabled() && this.mode.getValue() == MODE_WATCHDOG
                 && this.mwAttackReduce.getValue() && this.mwAttackCount > 0;
@@ -198,7 +197,6 @@ public class Velocity extends Module {
             mc.thePlayer.movementInput.moveStrafe = 0.0F;
         }
     }
-
 
     @EventTarget
     public void onUpdateMw(UpdateEvent event) {
@@ -291,7 +289,6 @@ public class Velocity extends Module {
             myau.util.PlayerUtil.attackEntity(target);
         }
     }
-
 
     private boolean mwBeginDelay(PacketEvent event, net.minecraft.network.Packet<?> packet) {
         if (this.mwDelayTicks.getValue() == 0) {
@@ -559,6 +556,7 @@ public class Velocity extends Module {
                     if (this.mode.getValue() == 2
                             && !this.reverseFlag
                             && this.canTriggerDelay()
+                            && !this.canDelay()
                             && !this.isInLiquidOrWeb()
                             && !this.pendingExplosion
                             && (!this.allowNext || !(Boolean) this.fakeCheck.getValue())

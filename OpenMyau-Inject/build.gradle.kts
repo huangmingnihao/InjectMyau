@@ -114,8 +114,38 @@ val bedDigPathRegression by tasks.registering(JavaExec::class) {
     })
     mainClass.set("myau.util.BedDigPathTest")
 }
+val radarProjectionRegression by tasks.registering(JavaExec::class) {
+    group = "verification"
+    description = "Checks radar directions, range projection and screen anchoring."
+    dependsOn(tasks.testClasses)
+    classpath = sourceSets.test.get().output + sourceSets.test.get().compileClasspath
+    javaLauncher.set(javaToolchains.launcherFor {
+        languageVersion.set(JavaLanguageVersion.of(8))
+    })
+    mainClass.set("myau.util.RadarProjectionTest")
+}
+val renderFrameHookRegression by tasks.registering(JavaExec::class) {
+    group = "verification"
+    description = "Checks per-frame overlays with cached HUDs and renderer early returns."
+    dependsOn(tasks.testClasses)
+    classpath = sourceSets.test.get().output + sourceSets.test.get().compileClasspath
+    javaLauncher.set(javaToolchains.launcherFor {
+        languageVersion.set(JavaLanguageVersion.of(8))
+    })
+    mainClass.set("myau.inject.RenderFrameHookTest")
+}
+val colorPropertyRegression by tasks.registering(JavaExec::class) {
+    group = "verification"
+    description = "Checks RGB config round trips and legacy ARGB colors."
+    dependsOn(tasks.testClasses)
+    classpath = sourceSets.test.get().output + sourceSets.test.get().compileClasspath
+    javaLauncher.set(javaToolchains.launcherFor {
+        languageVersion.set(JavaLanguageVersion.of(8))
+    })
+    mainClass.set("myau.property.ColorPropertyTest")
+}
 tasks.check {
-    dependsOn(bedDigPathRegression)
+    dependsOn(bedDigPathRegression, radarProjectionRegression, renderFrameHookRegression, colorPropertyRegression)
 }
 tasks.withType(org.gradle.jvm.tasks.Jar::class) {
     archiveBaseName.set(jarName)

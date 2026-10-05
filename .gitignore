@@ -35,6 +35,9 @@ dist-web/
 .idea/
 .vscode/
 
+# Local agent notes
+/AGENTS.md
+
 # Java
 *.class
 hs_err_pid*

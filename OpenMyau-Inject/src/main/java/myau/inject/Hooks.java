@@ -330,6 +330,11 @@ public final class Hooks {
     private static void camera() {
         String camera = CameraCallbacks.OWNER;
 
+        // The HUD can be cached by a launcher; the camera entry point still runs every frame.
+        HookRegistry.hook(ENTITY_RENDERER, "updateCameraAndRender", "(FJ)V")
+                .at(Position.HEAD).calls("renderFramePre", "(F)V").args("0").add();
+        HookRegistry.hook(ENTITY_RENDERER, "updateCameraAndRender", "(FJ)V")
+                .at(Position.RETURN).calls("renderFramePost").add();
         HookRegistry.hook(ENTITY_RENDERER, "updateCameraAndRender", "(FJ)V").in(camera)
                 .at(Position.HEAD).calls("cameraPre").add();
         HookRegistry.hook(ENTITY_RENDERER, "updateCameraAndRender", "(FJ)V").in(camera)

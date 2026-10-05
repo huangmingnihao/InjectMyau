@@ -138,7 +138,6 @@ public class KillAura extends Module {
     private boolean postBlock = false;
     private int testAttackTick = 0;
 
-
     public KillAura(){
         super("KillAura", false);
         this.mode = new ModeProperty("Mode", 0, new String[]{"Single", "Switch"});
@@ -1001,12 +1000,12 @@ public class KillAura extends Module {
                             rotations = nearestRotation(box, currentYaw, currentPitch, angleStep, smooth);
                         } else if (mode == 2) {
                             if (this.isNormalTargetVisible(box)) {
-                                rotations = RotationUtil.getRotationsToBox(box, currentYaw, currentPitch, angleStep, smooth);
+                                rotations = normalRotation(box, currentYaw, currentPitch, angleStep, smooth);
                             } else {
                                 rotations = nearestRotation(box, currentYaw, currentPitch, angleStep, smooth);
                             }
                         } else {
-                            rotations = RotationUtil.getRotationsToBox(box, currentYaw, currentPitch, angleStep, smooth);
+                            rotations = normalRotation(box, currentYaw, currentPitch, angleStep, smooth);
                         }
                         if (rotations != null) {
                             event.setRotation(rotations[0], rotations[1], 1);
@@ -1271,6 +1270,38 @@ public class KillAura extends Module {
         );
         float pitchDelta = MathHelper.wrapAngleTo180_float(
                 (float) (-Math.atan2(diffY, horizontalDist) * 180.0 / Math.PI) - currentPitch
+        );
+        yawDelta = Math.abs(yawDelta) <= 1.0f
+                ? 0.0f
+                : smoothAngle(clampAngle(yawDelta, maxAngle), smoothFactor);
+        pitchDelta = Math.abs(pitchDelta) <= 1.0f
+                ? 0.0f
+                : smoothAngle(clampAngle(pitchDelta, maxAngle), smoothFactor);
+        return new float[]{
+                quantizeAngle(currentYaw + yawDelta),
+                quantizeAngle(currentPitch + pitchDelta)
+        };
+    }
+
+    private static float[] normalRotation(AxisAlignedBB box, float currentYaw, float currentPitch,
+                                          float maxAngle, float smoothFactor) {
+        if (mc.thePlayer == null) {
+            return null;
+        }
+        Vec3 eyePos = mc.thePlayer.getPositionEyes(1.0F);
+        double minTargetY = box.minY + 0.05 * (box.maxY - box.minY);
+        double maxTargetY = box.minY + 0.75 * (box.maxY - box.minY);
+        double deltaX = (box.minX + box.maxX) / 2.0 - eyePos.xCoord;
+        double deltaY = eyePos.yCoord >= maxTargetY
+                ? maxTargetY - eyePos.yCoord
+                : (eyePos.yCoord <= minTargetY ? minTargetY - eyePos.yCoord : 0.0);
+        double deltaZ = (box.minZ + box.maxZ) / 2.0 - eyePos.zCoord;
+        double horizontalDist = Math.sqrt(deltaX * deltaX + deltaZ * deltaZ);
+        float yawDelta = MathHelper.wrapAngleTo180_float(
+                (float) (Math.atan2(deltaZ, deltaX) * 180.0 / Math.PI) - 90.0f - currentYaw
+        );
+        float pitchDelta = MathHelper.wrapAngleTo180_float(
+                (float) (-Math.atan2(deltaY, horizontalDist) * 180.0 / Math.PI) - currentPitch
         );
         yawDelta = Math.abs(yawDelta) <= 1.0f
                 ? 0.0f
