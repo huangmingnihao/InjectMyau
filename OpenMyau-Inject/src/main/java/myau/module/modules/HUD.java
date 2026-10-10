@@ -52,6 +52,8 @@ public class HUD extends Module {
     private static final int OUTLINE_FULL = 1;
     private static final int OUTLINE_SIDE = 2;
     private static final int COLOR_THEME = 6;
+    private static final int STYLE_CLASSIC = 0;
+    private static final int STYLE_GLOW = 1;
     public final ModeProperty colorMode = new ModeProperty(
             "color", 3, new String[]{"RAINBOW", "CHROMA", "ASTOLFO", "CUSTOM1", "CUSTOM12", "CUSTOM123", "THEME"}
     );
@@ -73,6 +75,16 @@ public class HUD extends Module {
     public final IntProperty backgroundRounding = new IntProperty("background-rounding", 3, 0, 16);
     public final ModeProperty arraylistOutline = new ModeProperty("arraylist-outline", OUTLINE_SIDE,
             new String[]{"NONE", "FULL", "SIDE"});
+    public final ModeProperty arraylistStyle = new ModeProperty("arraylist-style", STYLE_GLOW,
+            new String[]{"CLASSIC", "GLOW"});
+    public final BooleanProperty shine = new BooleanProperty("shine", true,
+            () -> this.arraylistStyle.getValue() == STYLE_GLOW);
+    public final FloatProperty shineSpeed = new FloatProperty("shine-speed", 1.0F, 0.25F, 3.0F,
+            () -> this.arraylistStyle.getValue() == STYLE_GLOW && this.shine.getValue());
+    public final BooleanProperty glow = new BooleanProperty("glow", true,
+            () -> this.arraylistStyle.getValue() == STYLE_GLOW);
+    public final PercentProperty glowStrength = new PercentProperty("glow-strength", 55,
+            () -> this.arraylistStyle.getValue() == STYLE_GLOW && this.glow.getValue());
     public final BooleanProperty shadow = new BooleanProperty("shadow", true);
     public final ModeProperty arraylistFont = new ModeProperty("arraylist-font", 0,
             new String[]{"VANILLA", "SF-BOLD", "SF-REGULAR", "SF-UI", "PRODUCT-SANS",
@@ -276,9 +288,6 @@ public class HUD extends Module {
         }
     }
 
-    /**
-     *
-     */
     private void fillCornerFan(float centerX, float centerY, float radius, int corner,
                                int red, int green, int blue, int alpha) {
         if (radius <= 0.0F) {
@@ -313,68 +322,207 @@ public class HUD extends Module {
         GL11.glEnd();
     }
 
-    /**
-     */
+    private static int mixColor(int from, int to, float t) {
+        t = Math.max(0.0F, Math.min(1.0F, t));
+        int alpha = (from >>> 24) & 0xFF;
+        int red = (int) (((from >> 16) & 0xFF) + (((to >> 16) & 0xFF) - ((from >> 16) & 0xFF)) * t);
+        int green = (int) (((from >> 8) & 0xFF) + (((to >> 8) & 0xFF) - ((from >> 8) & 0xFF)) * t);
+        int blue = (int) ((from & 0xFF) + ((to & 0xFF) - (from & 0xFF)) * t);
+        return (alpha << 24) | (red << 16) | (green << 8) | blue;
+    }
+
+    private float shineFactor(float rowCenterY, float panelTop, float panelBottom, long now) {
+        float span = Math.max(1.0F, panelBottom - panelTop);
+        float speed = Math.max(0.1F, this.shineSpeed.getValue());
+        long period = (long) Math.max(1.0F, 2600.0F / speed);
+        float progress = (float) (now % period) / period;
+        float band = span * 0.32F;
+        float bandCenter = panelTop - band + progress * (span + band * 2.0F);
+        float distance = Math.abs(rowCenterY - bandCenter);
+        if (distance >= band) {
+            return 0.0F;
+        }
+        float x = 1.0F - distance / band;
+        return x * x * (3.0F - 2.0F * x);
+    }
+
+    private void fillConnectedShape(List<float[]> rows, float expand, int color, int accent, float tintTop) {
+        boolean anchoredLeft = this.posX.getValue() == 0;
+        float requestedRadius = (float) this.backgroundRounding.getValue();
+        int count = rows.size();
+        for (int i = 0; i < count; i++) {
+            float[] row = rows.get(i);
+            int rowColor = color;
+            if (accent != 0 && tintTop > 0.0F) {
+                float tint = count <= 1 ? tintTop : tintTop * (1.0F - i / (float) (count - 1));
+                rowColor = mixColor(color, (color & 0xFF000000) | (accent & 0x00FFFFFF), tint);
+            }
+            int red = (rowColor >> 16) & 0xFF;
+            int green = (rowColor >> 8) & 0xFF;
+            int blue = rowColor & 0xFF;
+            int alpha = (rowColor >> 24) & 0xFF;
+            float left = row[0] - expand;
+            float right = row[1] + expand;
+            float top = row[2] - expand;
+            float bottom = row[3] + expand;
+            float height = bottom - top;
+            float width = right - left;
+            float radius = Math.min(requestedRadius + expand, height);
+            if (i + 1 < count) {
+                float[] next = rows.get(i + 1);
+                radius = Math.min(radius, anchoredLeft
+                        ? Math.max(0.0F, row[1] - next[1])
+                        : Math.max(0.0F, next[0] - row[0]));
+            } else {
+                radius = Math.min(radius, width);
+            }
+            if (radius <= 0.0F) {
+                RenderUtil.drawRect(left, top, right, bottom, rowColor);
+                continue;
+            }
+            if (bottom - radius > top) {
+                RenderUtil.drawRect(left, top, right, bottom - radius, rowColor);
+            }
+            float bandLeft = anchoredLeft ? left : left + radius;
+            float bandRight = anchoredLeft ? right - radius : right;
+            RenderUtil.drawRect(bandLeft, bottom - radius, bandRight, bottom, rowColor);
+            if (anchoredLeft) {
+                fillCornerFan(right - radius, bottom - radius, radius, 2, red, green, blue, alpha);
+            } else {
+                fillCornerFan(left + radius, bottom - radius, radius, 3, red, green, blue, alpha);
+            }
+        }
+    }
+
+    private void fillGlowUnion(List<float[]> rows, float expand, int color) {
+        int count = rows.size();
+        if (count == 0) {
+            return;
+        }
+        boolean anchoredLeft = this.posX.getValue() == 0;
+        float requestedRadius = (float) this.backgroundRounding.getValue();
+        float[] left = new float[count];
+        float[] right = new float[count];
+        float[] top = new float[count];
+        float[] bottom = new float[count];
+        float[] radius = new float[count];
+        for (int i = 0; i < count; i++) {
+            float[] row = rows.get(i);
+            left[i] = row[0] - expand;
+            right[i] = row[1] + expand;
+            top[i] = row[2] - expand;
+            bottom[i] = row[3] + expand;
+            float r = Math.min(requestedRadius + expand, bottom[i] - top[i]);
+            if (i + 1 < count) {
+                float[] next = rows.get(i + 1);
+                r = Math.min(r, anchoredLeft
+                        ? Math.max(0.0F, row[1] - next[1])
+                        : Math.max(0.0F, next[0] - row[0]));
+            } else {
+                r = Math.min(r, right[i] - left[i]);
+            }
+            radius[i] = Math.max(0.0F, r);
+        }
+        float fixed = anchoredLeft ? Float.MAX_VALUE : -Float.MAX_VALUE;
+        for (int i = 0; i < count; i++) {
+            fixed = anchoredLeft ? Math.min(fixed, left[i]) : Math.max(fixed, right[i]);
+        }
+        float yStart = top[0];
+        float yEnd = bottom[count - 1];
+        GL11.glColor4f(
+                ((color >> 16) & 0xFF) / 255.0F,
+                ((color >> 8) & 0xFF) / 255.0F,
+                (color & 0xFF) / 255.0F,
+                (color >>> 24) / 255.0F);
+        GL11.glBegin(GL11.GL_TRIANGLE_STRIP);
+        for (float y = yStart; ; y += 1.0F) {
+            float sample = Math.min(y, yEnd);
+            float edge = fixed;
+            for (int i = 0; i < count; i++) {
+                if (sample < top[i] || sample > bottom[i]) {
+                    continue;
+                }
+                float x = anchoredLeft ? right[i] : left[i];
+                float filletStart = bottom[i] - radius[i];
+                if (radius[i] > 0.0F && sample > filletStart) {
+                    float dy = sample - filletStart;
+                    float dx = (float) Math.sqrt(
+                            Math.max(0.0F, radius[i] * radius[i] - dy * dy));
+                    x += anchoredLeft ? dx - radius[i] : radius[i] - dx;
+                }
+                if (anchoredLeft ? x > edge : x < edge) {
+                    edge = x;
+                }
+            }
+            if (anchoredLeft) {
+                GL11.glVertex2f(fixed, sample);
+                GL11.glVertex2f(edge, sample);
+            } else {
+                GL11.glVertex2f(edge, sample);
+                GL11.glVertex2f(fixed, sample);
+            }
+            if (sample >= yEnd) {
+                break;
+            }
+        }
+        GL11.glEnd();
+    }
+
+    private void drawGlowHalo(List<float[]> rows, long now) {
+        if (rows.isEmpty() || this.glowStrength.getValue() <= 0) {
+            return;
+        }
+        int accent = this.getColor(now).getRGB();
+        int layers = 5;
+        float maxAlpha = this.glowStrength.getValue().floatValue() / 100.0F * 0.5F;
+        RenderUtil.enableRenderState();
+        GL11.glDisable(GL11.GL_TEXTURE_2D);
+        GL11.glEnable(GL11.GL_BLEND);
+        GL11.glBlendFunc(GL11.GL_SRC_ALPHA, GL11.GL_ONE_MINUS_SRC_ALPHA);
+        GL11.glShadeModel(GL11.GL_FLAT);
+        for (int k = layers; k >= 1; k--) {
+            float falloff = (layers - k + 1) / (float) layers;
+            int alpha = (int) (maxAlpha * falloff * 255.0F / 3.0F);
+            if (alpha <= 0) {
+                continue;
+            }
+            this.fillGlowUnion(rows, k * 1.0F,
+                    (Math.min(255, alpha) << 24) | (accent & 0x00FFFFFF));
+        }
+        GL11.glDisable(GL11.GL_BLEND);
+        GL11.glEnable(GL11.GL_TEXTURE_2D);
+        RenderUtil.disableRenderState();
+    }
+
+    private void arraylistDrawShineGlow(String text, float x, float y, int accent, float intensity) {
+        int alpha = (int) (Math.min(1.0F, intensity) * 70.0F);
+        if (alpha <= 0) {
+            return;
+        }
+        int glowColor = (alpha << 24) | (accent & 0x00FFFFFF);
+        RavenFontRenderer font = this.getArraylistFont();
+        font.drawString(text, x - 1.0F, y, glowColor, false);
+        font.drawString(text, x + 1.0F, y, glowColor, false);
+        font.drawString(text, x, y - 1.0F, glowColor, false);
+        font.drawString(text, x, y + 1.0F, glowColor, false);
+    }
+
     private void drawConnectedBackground(List<float[]> rows) {
         if (rows.isEmpty() || this.background.getValue() <= 0) {
             return;
         }
         int color = new Color(0.0F, 0.0F, 0.0F, this.background.getValue().floatValue() / 100.0F).getRGB();
-        float requestedRadius = (float) this.backgroundRounding.getValue();
-        boolean anchoredLeft = this.posX.getValue() == 0;
-        int red = (color >> 16) & 0xFF;
-        int green = (color >> 8) & 0xFF;
-        int blue = color & 0xFF;
-        int alpha = (color >> 24) & 0xFF;
+        int accent = this.arraylistStyle.getValue() == STYLE_GLOW
+                ? this.getColor(System.currentTimeMillis()).getRGB() & 0x00FFFFFF
+                : 0;
+        float tintTop = accent == 0 ? 0.0F : 0.14F;
 
         RenderUtil.enableRenderState();
         GL11.glDisable(GL11.GL_TEXTURE_2D);
         GL11.glEnable(GL11.GL_BLEND);
         GL11.glBlendFunc(GL11.GL_SRC_ALPHA, GL11.GL_ONE_MINUS_SRC_ALPHA);
         GL11.glShadeModel(GL11.GL_FLAT);
-
-        for (int i = 0; i < rows.size(); i++) {
-            float[] row = rows.get(i);
-            float left = row[0];
-            float right = row[1];
-            float top = row[2];
-            float bottom = row[3];
-            float height = bottom - top;
-            float width = right - left;
-            boolean isLast = i + 1 == rows.size();
-
-            float radius = Math.min(requestedRadius, height);
-            if (!isLast) {
-                float[] next = rows.get(i + 1);
-                if (anchoredLeft) {
-                    radius = Math.min(radius, Math.max(0.0F, right - next[1]));
-                } else {
-                    radius = Math.min(radius, Math.max(0.0F, next[0] - left));
-                }
-            } else {
-                radius = Math.min(radius, width);
-            }
-
-            if (radius <= 0.0F) {
-                RenderUtil.drawRect(left, top, right, bottom, color);
-                continue;
-            }
-
-            if (bottom - radius > top) {
-                RenderUtil.drawRect(left, top, right, bottom - radius, color);
-            }
-            float bandLeft = anchoredLeft ? left : left + radius;
-            float bandRight = anchoredLeft ? right - radius : right;
-            RenderUtil.drawRect(bandLeft, bottom - radius, bandRight, bottom, color);
-
-            if (anchoredLeft) {
-                fillCornerFan(right - radius, bottom - radius, radius, 2,
-                        red, green, blue, alpha);
-            } else {
-                fillCornerFan(left + radius, bottom - radius, radius, 3,
-                        red, green, blue, alpha);
-            }
-        }
+        this.fillConnectedShape(rows, 0.0F, color, accent, tintTop);
         GL11.glColor4f(1.0F, 1.0F, 1.0F, 1.0F);
         GL11.glDisable(GL11.GL_BLEND);
         GL11.glEnable(GL11.GL_TEXTURE_2D);
@@ -451,6 +599,17 @@ public class HUD extends Module {
             float boxBottom = boxTop + spacing;
             backgroundRows.add(new float[]{boxLeft, boxRight, boxTop, boxBottom});
         }
+        float panelTop = Float.MAX_VALUE;
+        float panelBottom = -Float.MAX_VALUE;
+        for (float[] bgRow : backgroundRows) {
+            panelTop = Math.min(panelTop, bgRow[2]);
+            panelBottom = Math.max(panelBottom, bgRow[3]);
+        }
+        if (this.arraylistStyle.getValue() == STYLE_GLOW && this.glow.getValue()) {
+            List<float[]> glowRows = new ArrayList<>(backgroundRows);
+            glowRows.sort((a, b) -> Float.compare(a[2], b[2]));
+            this.drawGlowHalo(glowRows, now);
+        }
         this.drawConnectedBackground(backgroundRows);
 
         int rowIdx = 0;
@@ -469,6 +628,13 @@ public class HUD extends Module {
             RenderUtil.disableRenderState();
             float x = (float) entry.x;
             float y = (float) entry.y;
+            if (this.arraylistStyle.getValue() == STYLE_GLOW && this.shine.getValue()) {
+                float factor = this.shineFactor((boxTop + boxBottom) * 0.5F, panelTop, panelBottom, now);
+                if (factor > 0.0F) {
+                    this.arraylistDrawShineGlow(entry.displayText, x, this.arraylistTextY(y), color, factor);
+                    color = mixColor(color, 0xFFFFFFFF, factor * 0.65F);
+                }
+            }
             this.arraylistDraw(entry.displayText, x, this.arraylistTextY(y), color);
             firstRow = false;
             prevLeft = boxLeft - thickness;
