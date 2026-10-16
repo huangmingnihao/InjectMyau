@@ -10,6 +10,7 @@ import myau.property.properties.KeyProperty;
 import myau.property.properties.ModeProperty;
 import myau.property.properties.PercentProperty;
 import myau.property.properties.TextProperty;
+import myau.slinky.RangeProperty;
 import myau.ui.callback.GuiInput;
 import myau.ui.clickgui.GuiRender;
 import myau.util.KeyBindUtil;
@@ -48,6 +49,7 @@ public class ModernSetting {
     private boolean dragging;
     private float dragLeft;
     private float dragWidth;
+    private int dragBound = 1;
     private boolean colorExpanded;
     private int colorDrag = -1;
 
@@ -71,7 +73,7 @@ public class ModernSetting {
             return new ModernSetting(Kind.MODE, property, null);
         }
         if (property instanceof IntProperty || property instanceof FloatProperty
-                || property instanceof PercentProperty) {
+                || property instanceof PercentProperty || property instanceof RangeProperty) {
             return new ModernSetting(Kind.SLIDER, property, null);
         }
         if (property instanceof TextProperty) {
@@ -114,7 +116,6 @@ public class ModernSetting {
     public String getName() {
         return this.property == null ? "bind" : this.property.getName().replace("-", " ");
     }
-
 
     public void draw(float x, float y, float width, int mouseX, int mouseY) {
         float height = this.getHeight();
@@ -242,12 +243,33 @@ public class ModernSetting {
         double ratio = span <= 0.0 ? 0.0 : (currentValue() - minimum()) / span;
         ratio = Math.max(0.0, Math.min(1.0, ratio));
         float filled = (float) (trackWidth * ratio);
+        if (this.property instanceof RangeProperty) {
+            RangeProperty range = (RangeProperty) this.property;
+            float lower = (float) rangeRatio(range, range.getValue().lower);
+            float upper = (float) rangeRatio(range, range.getValue().upper);
+            float lo = trackX + trackWidth * lower;
+            float hi = trackX + trackWidth * upper;
+            if (hi - lo > 0.0F) {
+                GuiRender.drawRoundedRect(lo, trackY, hi, trackY + 3.0F, 3.0F, ModernUi.ACCENT);
+            }
+            GuiRender.drawRoundedRect(lo - 3.0F, trackY - 2.0F, lo + 3.0F, trackY + 5.0F, 5.0F, KNOB_ON);
+            GuiRender.drawRoundedRect(hi - 3.0F, trackY - 2.0F, hi + 3.0F, trackY + 5.0F, 5.0F, KNOB_ON);
+            return;
+        }
         if (filled > 0.0F) {
             GuiRender.drawRoundedRect(trackX, trackY, trackX + filled, trackY + 3.0F, 3.0F,
                     ModernUi.ACCENT);
         }
         GuiRender.drawRoundedRect(trackX + filled - 3.0F, trackY - 2.0F,
                 trackX + filled + 3.0F, trackY + 5.0F, 5.0F, KNOB_ON);
+    }
+
+    private double rangeRatio(RangeProperty range, double value) {
+        double span = range.getMaximum() - range.getMinimum();
+        if (span <= 0.0) {
+            return 0.0;
+        }
+        return Math.max(0.0, Math.min(1.0, (value - range.getMinimum()) / span));
     }
 
     private void drawSwitch(float x, float y, boolean on) {
@@ -258,7 +280,6 @@ public class ModernSetting {
         GuiRender.drawRoundedRect(knobX, y + 1.0F, knobX + knob, y + 1.0F + knob, knob,
                 on ? KNOB_ON : KNOB_OFF);
     }
-
 
     public boolean onClick(float x, float y, float width, int mouseX, int mouseY, int button) {
         float height = this.getHeight();
@@ -294,6 +315,13 @@ public class ModernSetting {
                 this.dragging = true;
                 this.dragLeft = x + TRACK_INSET;
                 this.dragWidth = width - TRACK_INSET * 2.0F;
+                if (this.property instanceof RangeProperty) {
+                    RangeProperty range = (RangeProperty) this.property;
+                    float trackWidth = this.dragWidth;
+                    float lo = this.dragLeft + trackWidth * (float) rangeRatio(range, range.getValue().lower);
+                    float hi = this.dragLeft + trackWidth * (float) rangeRatio(range, range.getValue().upper);
+                    this.dragBound = Math.abs(mouseX - lo) <= Math.abs(mouseX - hi) ? 0 : 1;
+                }
                 applyRatio(mouseX);
                 return true;
             }
@@ -430,11 +458,29 @@ public class ModernSetting {
         }
         double ratio = (mouseX - this.dragLeft) / (double) this.dragWidth;
         ratio = Math.max(0.0, Math.min(1.0, ratio));
+        if (this.property instanceof RangeProperty) {
+            RangeProperty range = (RangeProperty) this.property;
+            double value = range.snap(range.getMinimum() + ratio * (range.getMaximum() - range.getMinimum()));
+            RangeProperty.Value current = range.getValue();
+            double lower = current.lower;
+            double upper = current.upper;
+            if (this.dragBound == 0) {
+                lower = Math.min(value, upper);
+            } else {
+                upper = Math.max(value, lower);
+            }
+            range.setValue(new RangeProperty.Value(lower, upper));
+            return;
+        }
         apply(minimum() + ratio * (maximum() - minimum()));
     }
 
     private void applyInput(String input) {
         if (input == null) {
+            return;
+        }
+        if (this.property instanceof RangeProperty) {
+            this.property.parseString(input);
             return;
         }
         try {
@@ -457,7 +503,6 @@ public class ModernSetting {
         }
     }
 
-
     private String valueLabel() {
         switch (this.kind) {
             case MODE:
@@ -474,14 +519,30 @@ public class ModernSetting {
     }
 
     private String sliderLabel() {
+        if (this.property instanceof RangeProperty) {
+            return this.property.formatValue() + this.property.getUnitSuffix();
+        }
         double value = currentValue();
+        String base;
         if (this.property instanceof PercentProperty) {
-            return ((int) value) + "%";
+            base = ((int) value) + "%";
+        } else if (value == Math.floor(value) && !Double.isInfinite(value)) {
+            base = String.valueOf((long) value);
+        } else {
+            base = String.format("%.2f", value);
         }
-        if (value == Math.floor(value) && !Double.isInfinite(value)) {
-            return String.valueOf((long) value);
+        return appendUnit(base);
+    }
+
+    private String appendUnit(String base) {
+        if (this.property == null) {
+            return base;
         }
-        return String.format("%.2f", value);
+        String suffix = this.property.getUnitSuffix();
+        if (suffix.isEmpty() || base.endsWith(suffix)) {
+            return base;
+        }
+        return base + suffix;
     }
 
     private String keyLabel() {

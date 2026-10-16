@@ -6,6 +6,7 @@ import myau.Myau;
 import myau.access.AccessorMinecraft;
 import myau.access.AccessorRenderManager;
 import myau.module.modules.FreeLook;
+import myau.slinky.SlinkyRotationService;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.RenderGlobal;
 import net.minecraft.client.renderer.entity.RenderManager;
@@ -38,6 +39,10 @@ public final class FreeLookCallbacks {
         return module != null && module.isEnabled() && FreeLook.perspectiveToggled;
     }
 
+    private static boolean silentActive() {
+        return SlinkyRotationService.isCameraActive();
+    }
+
     /** Runs every rendered frame from EntityRenderer.updateCameraAndRender. */
     public static void frameTick() {
         try {
@@ -53,43 +58,67 @@ public final class FreeLookCallbacks {
     // ---- EntityRenderer.orientCamera: camera placement -----------------------
 
     public static float orientYaw(Entity entity) {
-        return active() ? FreeLook.cameraYaw : entity.rotationYaw;
+        if (active()) {
+            return FreeLook.cameraYaw;
+        }
+        return silentActive() ? SlinkyRotationService.cameraYaw() : entity.rotationYaw;
     }
 
     public static float orientPrevYaw(Entity entity) {
-        return active() ? FreeLook.cameraYaw : entity.prevRotationYaw;
+        if (active()) {
+            return FreeLook.cameraYaw;
+        }
+        return silentActive() ? SlinkyRotationService.cameraYaw() : entity.prevRotationYaw;
     }
 
     public static float orientPitch(Entity entity) {
-        return active() ? FreeLook.cameraPitch : entity.rotationPitch;
+        if (active()) {
+            return FreeLook.cameraPitch;
+        }
+        return silentActive() ? SlinkyRotationService.cameraPitch() : entity.rotationPitch;
     }
 
     public static float orientPrevPitch(Entity entity) {
-        return active() ? FreeLook.cameraPitch : entity.prevRotationPitch;
+        if (active()) {
+            return FreeLook.cameraPitch;
+        }
+        return silentActive() ? SlinkyRotationService.cameraPitch() : entity.prevRotationPitch;
     }
 
     // ---- ActiveRenderInfo.updateRenderInfo: view vector ---------------------
 
     public static float renderInfoYaw(Entity entity) {
-        return active() && entity instanceof EntityPlayer
-                ? FreeLook.cameraYaw : entity.rotationYaw;
+        if (active() && entity instanceof EntityPlayer) {
+            return FreeLook.cameraYaw;
+        }
+        return silentActive() && entity instanceof EntityPlayer
+                ? SlinkyRotationService.cameraYaw() : entity.rotationYaw;
     }
 
     public static float renderInfoPitch(Entity entity) {
-        return active() && entity instanceof EntityPlayer
-                ? FreeLook.cameraPitch : entity.rotationPitch;
+        if (active() && entity instanceof EntityPlayer) {
+            return FreeLook.cameraPitch;
+        }
+        return silentActive() && entity instanceof EntityPlayer
+                ? SlinkyRotationService.cameraPitch() : entity.rotationPitch;
     }
 
     // ---- RenderGlobal.setupTerrain: frustum orientation ---------------------
 
     public static float terrainYaw(Entity entity) {
-        return active() && entity == Minecraft.getMinecraft().getRenderViewEntity()
-                ? FreeLook.cameraYaw : entity.rotationYaw;
+        if (active() && entity == Minecraft.getMinecraft().getRenderViewEntity()) {
+            return FreeLook.cameraYaw;
+        }
+        return silentActive() && entity == Minecraft.getMinecraft().getRenderViewEntity()
+                ? SlinkyRotationService.cameraYaw() : entity.rotationYaw;
     }
 
     public static float terrainPitch(Entity entity) {
-        return active() && entity == Minecraft.getMinecraft().getRenderViewEntity()
-                ? FreeLook.cameraPitch : entity.rotationPitch;
+        if (active() && entity == Minecraft.getMinecraft().getRenderViewEntity()) {
+            return FreeLook.cameraPitch;
+        }
+        return silentActive() && entity == Minecraft.getMinecraft().getRenderViewEntity()
+                ? SlinkyRotationService.cameraPitch() : entity.rotationPitch;
     }
 
     public static Vector3f terrainViewVector(RenderGlobal renderGlobal,
@@ -99,6 +128,9 @@ public final class FreeLookCallbacks {
         if (entityIn == Minecraft.getMinecraft().getRenderViewEntity() && active()) {
             pitch = FreeLook.cameraPitch;
             yaw = FreeLook.cameraYaw;
+        } else if (entityIn == Minecraft.getMinecraft().getRenderViewEntity() && silentActive()) {
+            pitch = SlinkyRotationService.cameraPitch();
+            yaw = SlinkyRotationService.cameraYaw();
         } else {
             pitch = (float) ((double) entityIn.prevRotationPitch
                     + (double) (entityIn.rotationPitch - entityIn.prevRotationPitch) * partialTicks);
@@ -118,11 +150,15 @@ public final class FreeLookCallbacks {
     // ---- RenderManager.cacheActiveRenderInfo: entity render angles ---------
 
     public static void setPlayerViewX(RenderManager renderManager, float value) {
-        AccessorRenderManager.setPlayerViewX(renderManager, active() ? FreeLook.cameraPitch : value);
+        AccessorRenderManager.setPlayerViewX(renderManager,
+                active() ? FreeLook.cameraPitch
+                        : silentActive() ? SlinkyRotationService.cameraPitch() : value);
     }
 
     public static void setPlayerViewY(RenderManager renderManager, float value) {
-        AccessorRenderManager.setPlayerViewY(renderManager, active() ? FreeLook.cameraYaw : value);
+        AccessorRenderManager.setPlayerViewY(renderManager,
+                active() ? FreeLook.cameraYaw
+                        : silentActive() ? SlinkyRotationService.cameraYaw() : value);
     }
 
     // ---- EntityRenderer.updateCameraAndRender: mouse handling --------------
@@ -134,33 +170,45 @@ public final class FreeLookCallbacks {
                 return false;
             }
             FreeLook module = module();
-            if (module == null || !module.isEnabled() || !FreeLook.perspectiveToggled) {
-                return true;
-            }
-            MouseHelper helper = AccessorMinecraft.getMouseHelper(mc);
-            if (helper == null) {
+            if (module != null && module.isEnabled() && FreeLook.perspectiveToggled) {
+                MouseHelper helper = AccessorMinecraft.getMouseHelper(mc);
+                if (helper == null) {
+                    return false;
+                }
+                helper.mouseXYChange();
+                float sens = mc.gameSettings.mouseSensitivity * 0.6F + 0.2F;
+                float mult = sens * sens * sens * 8.0F;
+                float fdx = helper.deltaX * mult;
+                float fdy = helper.deltaY * mult;
+                FreeLook.cameraYaw += fdx * 0.15F;
+                if (module.invertPitch.getValue()) {
+                    fdy = -fdy;
+                }
+                FreeLook.cameraPitch += fdy * 0.15F;
+                if (module.lockPitch.getValue()) {
+                    FreeLook.cameraPitch = Math.max(-90.0F, Math.min(90.0F, FreeLook.cameraPitch));
+                }
+                if (module.customFov.getValue()) {
+                    mc.gameSettings.fovSetting = module.fov.getValue();
+                }
                 return false;
             }
-            helper.mouseXYChange();
-            float sens = mc.gameSettings.mouseSensitivity * 0.6F + 0.2F;
-            float mult = sens * sens * sens * 8.0F;
-            float fdx = helper.deltaX * mult;
-            float fdy = helper.deltaY * mult;
-            FreeLook.cameraYaw += fdx * 0.15F;
-            if (module.invertPitch.getValue()) {
-                fdy = -fdy;
-            }
-            FreeLook.cameraPitch += fdy * 0.15F;
-            if (module.lockPitch.getValue()) {
-                FreeLook.cameraPitch = Math.max(-90.0F, Math.min(90.0F, FreeLook.cameraPitch));
-            }
-            if (module.customFov.getValue()) {
-                mc.gameSettings.fovSetting = module.fov.getValue();
+            if (silentActive()) {
+                MouseHelper helper = AccessorMinecraft.getMouseHelper(mc);
+                if (helper == null) {
+                    return false;
+                }
+                helper.mouseXYChange();
+                float sens = mc.gameSettings.mouseSensitivity * 0.6F + 0.2F;
+                float mult = sens * sens * sens * 8.0F;
+                SlinkyRotationService.consumeMouse(
+                        (float) helper.deltaX * mult, (float) helper.deltaY * mult);
+                return false;
             }
         } catch (Throwable t) {
             Log.swallowed(t);
         }
-        return false;
+        return true;
     }
 
     // ---- Minecraft.runTick: F5 perspective toggle --------------------------

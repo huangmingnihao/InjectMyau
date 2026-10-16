@@ -5,6 +5,7 @@ import myau.property.properties.FloatProperty;
 import myau.property.properties.IntProperty;
 import myau.property.properties.ModeProperty;
 import myau.property.properties.PercentProperty;
+import myau.slinky.RangeProperty;
 import myau.ui.callback.GuiInput;
 import myau.ui.clickgui.GuiRender;
 import net.minecraft.client.Minecraft;
@@ -30,6 +31,7 @@ public class SliderComponent extends Component {
     private boolean heldDown;
     private double shownValue;
     private double filledWidth;
+    private int dragBound = 1;
     public SliderComponent(Property<?> property, ModuleComponent module, float offset) {
         this.property = property;
         this.module = module;
@@ -48,6 +50,10 @@ public class SliderComponent extends Component {
             this.choice = false;
             this.minimum = ((PercentProperty) property).getMinimum();
             this.maximum = ((PercentProperty) property).getMaximum();
+        } else if (property instanceof RangeProperty) {
+            this.choice = false;
+            this.minimum = ((RangeProperty) property).getMinimum();
+            this.maximum = ((RangeProperty) property).getMaximum();
         } else {
             this.choice = false;
             this.minimum = ((FloatProperty) property).getMinimum();
@@ -60,7 +66,8 @@ public class SliderComponent extends Component {
         return property instanceof IntProperty
                 || property instanceof FloatProperty
                 || property instanceof PercentProperty
-                || property instanceof ModeProperty;
+                || property instanceof ModeProperty
+                || property instanceof RangeProperty;
     }
     @Override
     public void render() {
@@ -69,8 +76,20 @@ public class SliderComponent extends Component {
         float top = this.module.category.getY() + this.offset + 11;
         float bottom = top + 4;
         GuiRender.drawRoundedRect(left, top, right, bottom, 4, TRACK_COLOR);
-        GuiRender.drawRoundedRect(left, top, (float) Math.min(right, left + this.filledWidth), bottom, 4,
-                Color.getHSBColor((System.currentTimeMillis() % 11000L) / 11000.0F, 0.75F, 0.9F).getRGB());
+        if (this.property instanceof RangeProperty) {
+            RangeProperty range = (RangeProperty) this.property;
+            double span = this.maximum - this.minimum;
+            float width = this.module.category.getWidth() - 8;
+            float lo = span <= 0.0 ? left : (float) (left + width * ((range.getValue().lower - this.minimum) / span));
+            float hi = span <= 0.0 ? left : (float) (left + width * ((range.getValue().upper - this.minimum) / span));
+            if (hi - lo > 0.0F) {
+                GuiRender.drawRoundedRect(lo, top, hi, bottom, 4,
+                        Color.getHSBColor((System.currentTimeMillis() % 11000L) / 11000.0F, 0.75F, 0.9F).getRGB());
+            }
+        } else {
+            GuiRender.drawRoundedRect(left, top, (float) Math.min(right, left + this.filledWidth), bottom, 4,
+                    Color.getHSBColor((System.currentTimeMillis() % 11000L) / 11000.0F, 0.75F, 0.9F).getRGB());
+        }
         GL11.glPushMatrix();
         GL11.glScaled(0.5, 0.5, 0.5);
         Minecraft.getMinecraft().fontRendererObj.drawStringWithShadow(
@@ -105,10 +124,23 @@ public class SliderComponent extends Component {
             return true;
         }
         this.heldDown = true;
+        if (this.property instanceof RangeProperty) {
+            RangeProperty range = (RangeProperty) this.property;
+            double span = this.maximum - this.minimum;
+            float width = this.module.category.getWidth() - 8;
+            float base = this.x + 4;
+            float lo = span <= 0.0 ? base : (float) (base + width * ((range.getValue().lower - this.minimum) / span));
+            float hi = span <= 0.0 ? base : (float) (base + width * ((range.getValue().upper - this.minimum) / span));
+            this.dragBound = Math.abs(mouseX - lo) <= Math.abs(mouseX - hi) ? 0 : 1;
+        }
         return true;
     }
     private void applyInput(String text) {
         if (this.choice || text == null) {
+            return;
+        }
+        if (this.property instanceof RangeProperty) {
+            this.property.parseString(text.trim());
             return;
         }
         double parsed;
@@ -135,9 +167,26 @@ public class SliderComponent extends Component {
                 && mouseY > this.y && mouseY < this.y + HEIGHT;
     }
     private double current() {
+        if (this.property instanceof RangeProperty) {
+            return ((RangeProperty) this.property).getValue().upper;
+        }
         return ((Number) this.property.getValue()).doubleValue();
     }
     private void apply(double value) {
+        if (this.property instanceof RangeProperty) {
+            RangeProperty range = (RangeProperty) this.property;
+            double snapped = range.snap(value);
+            RangeProperty.Value current = range.getValue();
+            double lower = current.lower;
+            double upper = current.upper;
+            if (this.dragBound == 0) {
+                lower = Math.min(snapped, upper);
+            } else {
+                upper = Math.max(snapped, lower);
+            }
+            range.setValue(new RangeProperty.Value(lower, upper));
+            return;
+        }
         if (this.property instanceof FloatProperty) {
             this.property.setValue(((FloatProperty) this.property).snap((float) value));
         } else {
@@ -149,14 +198,21 @@ public class SliderComponent extends Component {
     }
 
     private String label() {
+        if (this.property instanceof RangeProperty) {
+            return this.property.formatValue() + this.property.getUnitSuffix();
+        }
         if (this.choice) {
             return ((ModeProperty) this.property).getModeString();
         }
         double value = this.current();
-        if (value == Math.rint(value) && !Double.isInfinite(value)) {
-            return String.valueOf((long) value);
+        String base = value == Math.rint(value) && !Double.isInfinite(value)
+                ? String.valueOf((long) value)
+                : String.format("%.1f", round(value));
+        String suffix = this.property.getUnitSuffix();
+        if (suffix.isEmpty() || base.endsWith(suffix)) {
+            return base;
         }
-        return String.format("%.1f", round(value));
+        return base + suffix;
     }
     private double widthFor(double value) {
         double span = this.maximum - this.minimum;

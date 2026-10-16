@@ -5,6 +5,7 @@ import myau.event.types.EventType;
 import myau.event.types.Priority;
 import myau.events.Render3DEvent;
 import myau.events.TickEvent;
+import myau.slinky.SlinkyRotationService;
 import net.minecraft.client.Minecraft;
 import net.minecraft.util.MathHelper;
 
@@ -50,6 +51,9 @@ public class RotationManager {
     }
 
     public void setRotation(float yaw, float pitch, int priority, boolean force) {
+        if (!SlinkyRotationService.allows(priority)) {
+            return;
+        }
         if (this.priority <= priority) {
             this.priority = priority;
             this.yawDelta = MathHelper.wrapAngleTo180_float(yaw - mc.thePlayer.rotationYaw);
