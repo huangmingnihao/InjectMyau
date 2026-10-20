@@ -118,7 +118,7 @@ public class BedDefender extends Module {
     public final BooleanProperty bedwarsOnly = new BooleanProperty("bedwars-only", true);
     public final BooleanProperty entityCheck = new BooleanProperty("entity-check", true);
     public final IntProperty delayAfterSwap = new IntProperty("delay-after-swap", 0, 0, 10);
-    public final IntProperty delayAfterAim = new IntProperty("delay-after-aim", 1, 0, 10);
+    public final IntProperty delayAfterAim = new IntProperty("delay-after-aim", 0, 0, 10);
     public final IntProperty sneakHoldTicks = new IntProperty("sneak-hold-ticks", 5, 0, 20);
     public final IntProperty fov = new IntProperty("fov", 180, 0, 180);
     public final ModeProperty moveFix =
@@ -137,10 +137,6 @@ public class BedDefender extends Module {
 
     private boolean sneaking;
     private int sneakRemaining;
-
-    private int retryTicks;
-    private float retryYaw;
-    private float retryPitch;
 
     private BlockPos renderTarget;
     private final Map<String, Integer> slotCache = new HashMap<String, Integer>();
@@ -227,14 +223,6 @@ public class BedDefender extends Module {
         BlockPos target = this.targetOf(this.stepIndex);
         this.renderTarget = target;
 
-        if (this.retryTicks > 0) {
-            this.retryTicks--;
-            float[] held = this.attemptPlace(this.retryYaw, this.retryPitch, target);
-            if (held != null) {
-                return held;
-            }
-        }
-
         float[] held = this.attemptPlace(this.serverYaw, this.serverPitch, target);
         if (held != null) {
             return held;
@@ -245,7 +233,7 @@ public class BedDefender extends Module {
                 return result;
             }
         }
-        return null;
+        return new float[]{this.serverYaw, this.serverPitch};
     }
 
     private boolean begin() {
@@ -438,11 +426,6 @@ public class BedDefender extends Module {
         this.aimTicks = this.delayAfterAim.getValue();
         if (placed) {
             mc.thePlayer.swingItem();
-            this.retryTicks = 0;
-        } else {
-            this.retryYaw = yaw;
-            this.retryPitch = pitch;
-            this.retryTicks = 3;
         }
         return new float[]{yaw, pitch};
     }
@@ -581,8 +564,6 @@ public class BedDefender extends Module {
         return state(pos) == Blocks_air();
     }
 
-    /**
-     */
     private boolean blockedByEntity(BlockPos target) {
         AxisAlignedBB box = new AxisAlignedBB(
                 target.getX(), target.getY(), target.getZ(),
