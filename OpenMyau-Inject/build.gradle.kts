@@ -144,8 +144,20 @@ val colorPropertyRegression by tasks.registering(JavaExec::class) {
     })
     mainClass.set("myau.property.ColorPropertyTest")
 }
+val hudAnimationRegression by tasks.registering(JavaExec::class) {
+    group = "verification"
+    description = "Checks HUD timing, toggle reversals, stalled frames and text anchoring."
+    dependsOn(tasks.testClasses)
+    classpath = sourceSets.test.get().output + sourceSets.test.get().compileClasspath
+    javaLauncher.set(javaToolchains.launcherFor {
+        languageVersion.set(JavaLanguageVersion.of(8))
+    })
+    mainClass.set("myau.util.HudAnimationTest")
+}
+
 tasks.check {
-    dependsOn(bedDigPathRegression, radarProjectionRegression, renderFrameHookRegression, colorPropertyRegression)
+    dependsOn(bedDigPathRegression, radarProjectionRegression, renderFrameHookRegression,
+        colorPropertyRegression, hudAnimationRegression)
 }
 tasks.withType(org.gradle.jvm.tasks.Jar::class) {
     archiveBaseName.set(jarName)
