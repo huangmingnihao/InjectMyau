@@ -162,6 +162,7 @@ public abstract class MixinMinecraft {
         if (integer < 0) {
             MouseButtonEvent mouseEvent = new MouseButtonEvent(integer + 100, boolean2);
             EventManager.call(mouseEvent);
+
             if (mouseEvent.isCancelled() && boolean2) {
                 return;
             }

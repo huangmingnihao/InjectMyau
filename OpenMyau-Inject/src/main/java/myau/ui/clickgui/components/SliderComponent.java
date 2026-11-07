@@ -17,6 +17,7 @@ import java.math.RoundingMode;
 
 public class SliderComponent extends Component {
     public static final float HEIGHT = 16.0F;
+
     private static final float TEXT_HEIGHT = 11.0F;
     private static final double CATCH_UP = 0.6;
     private static final int TRACK_COLOR = -12302777;
@@ -31,6 +32,7 @@ public class SliderComponent extends Component {
     private boolean heldDown;
     private double shownValue;
     private double filledWidth;
+
     private int dragBound = 1;
     public SliderComponent(Property<?> property, ModuleComponent module, float offset) {
         this.property = property;
@@ -118,6 +120,7 @@ public class SliderComponent extends Component {
                 || !this.module.isOpened() || !this.module.isVisible(this)) {
             return false;
         }
+
         if (!this.choice && mouseY < this.y + TEXT_HEIGHT) {
             GuiInput.prompt(this.property.getName().replace("-", " "), this.label(),
                     this::applyInput, Minecraft.getMinecraft().currentScreen);
@@ -135,6 +138,7 @@ public class SliderComponent extends Component {
         }
         return true;
     }
+
     private void applyInput(String text) {
         if (this.choice || text == null) {
             return;

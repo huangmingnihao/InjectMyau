@@ -9,8 +9,6 @@ import net.minecraft.client.settings.GameSettings;
 import net.minecraft.entity.Entity;
 import net.minecraft.util.MovementInput;
 
-/**
- */
 public final class BridgeAssistCallbacks {
     public static final String OWNER = "myau/inject/BridgeAssistCallbacks";
     private static float savedYaw;
@@ -21,8 +19,7 @@ public final class BridgeAssistCallbacks {
     private BridgeAssistCallbacks() {
     }
 
-    /**
-     */
+
     public static void onGetMouseOverHead() {
         try {
             swapped = false;
@@ -31,6 +28,7 @@ public final class BridgeAssistCallbacks {
             if (view == null || !(view instanceof EntityPlayerSP)) {
                 return;
             }
+
             float[] fake = BridgeAssist.getFakeRotation();
             if (fake == null) {
                 return;
@@ -39,6 +37,7 @@ public final class BridgeAssistCallbacks {
             savedPitch = view.rotationPitch;
             savedPrevYaw = view.prevRotationYaw;
             savedPrevPitch = view.prevRotationPitch;
+
             view.rotationYaw = fake[0];
             view.prevRotationYaw = fake[0];
             view.rotationPitch = fake[1];
@@ -49,8 +48,7 @@ public final class BridgeAssistCallbacks {
         }
     }
 
-    /**
-     */
+
     public static void onGetMouseOverReturn() {
         try {
             if (!swapped) {
@@ -96,6 +94,7 @@ public final class BridgeAssistCallbacks {
 
             BridgeInputEvent event = new BridgeInputEvent(forward, strafe, jump, sneak);
             EventManager.call(event);
+
             BridgeAssist.fixMovementForServerRotation(event);
 
             MovementInput input = player.movementInput;

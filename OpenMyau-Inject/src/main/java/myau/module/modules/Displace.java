@@ -183,12 +183,12 @@ public class Displace extends Module {
         return this.hasKB;
     }
 
-
     @EventTarget
     public void onUpdate(UpdateEvent event) {
         if (event.getType() != EventType.PRE) {
             return;
         }
+
         if (!this.isEnabled()) {
             return;
         }
@@ -297,7 +297,6 @@ public class Displace extends Module {
         this.wasDisplacingLastTick = false;
         this.hideArrow();
     }
-
 
     private boolean isOverrideAttackEnabled() {
         return this.overrideAttack.getValue();
@@ -494,7 +493,6 @@ public class Displace extends Module {
         this.showArrow(this.overrideTarget, this.overrideFlickYaw);
     }
 
-
     private void showArrow(EntityPlayer player, float yaw) {
         long now = System.currentTimeMillis();
         boolean playerChanged = this.arrowPlayer != player;
@@ -690,7 +688,6 @@ public class Displace extends Module {
             this.triggerArrowNudge(this.arrowPlayer);
         }
     }
-
 
     @EventTarget(Priority.HIGHEST)
     public void onRightClickMouse(RightClickMouseEvent event) {
@@ -900,7 +897,6 @@ public class Displace extends Module {
         }
     }
 
-
     @EventTarget(Priority.HIGH)
     public void onPacket(PacketEvent event) {
         if (!this.isEnabled() || event.getType() != EventType.SEND || event.isCancelled()) {
@@ -948,6 +944,7 @@ public class Displace extends Module {
         if (event.getType() != EventType.PRE) {
             return;
         }
+
         if (!this.isEnabled()) {
             return;
         }
@@ -974,7 +971,6 @@ public class Displace extends Module {
             this.outboundBlink = null;
         }
     }
-
 
     private boolean tryFindVoidDirection(EntityPlayer target) {
         double dx = target.posX - mc.thePlayer.posX;

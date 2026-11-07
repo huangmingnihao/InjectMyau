@@ -28,10 +28,13 @@ import net.minecraft.util.MathHelper;
 
 public class BedESP extends Module {
     private static final Minecraft mc = Minecraft.getMinecraft();
+
     public final CopyOnWriteArraySet<BlockPos> beds = new CopyOnWriteArraySet<>();
+
     public final FloatProperty range = new FloatProperty("range", 20.0F, 4.0F, 128.0F, 1.0F);
     public final ModeProperty color = new ModeProperty("color", 0, new String[]{"CUSTOM", "HUD"});
     public final ColorProperty customColor;
+
     public final BooleanProperty obsidian = new BooleanProperty("obsidian", true);
 
     private static final int SCAN_INTERVAL = 4;
@@ -42,6 +45,7 @@ public class BedESP extends Module {
     private static final int OBS_G = 0;
     private static final int OBS_B = 170;
     private static final float LINE_WIDTH = 1.5F;
+
     private static final EnumFacing[] NEIGHBOR_FACES = {
             EnumFacing.UP, EnumFacing.NORTH, EnumFacing.EAST, EnumFacing.SOUTH, EnumFacing.WEST
     };
@@ -71,6 +75,7 @@ public class BedESP extends Module {
             return;
         }
         this.scanCounter = 0;
+
         int radius = Math.min(MAX_SCAN_RADIUS, (int) Math.ceil(this.range.getValue()));
         int px = MathHelper.floor_double(mc.thePlayer.posX);
         int py = MathHelper.floor_double(mc.thePlayer.posY);

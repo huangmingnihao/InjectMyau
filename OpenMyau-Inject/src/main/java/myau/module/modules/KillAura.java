@@ -21,6 +21,7 @@ import myau.events.MoveInputEvent;
 import myau.events.PacketEvent;
 import myau.events.Render3DEvent;
 import myau.events.RightClickMouseEvent;
+import myau.events.SwapPlusEvent;
 import myau.events.TickEvent;
 import myau.events.UpdateEvent;
 import myau.management.RotationState;
@@ -78,6 +79,7 @@ public class KillAura extends Module {
     public ModeProperty autoBlock;
     public ModeProperty hypixelMode;
     public ModeProperty lagMode;
+    public ModeProperty lagClass;
     private final BooleanProperty noStop = new BooleanProperty("NoSwap",true,this::isOldHypixel);
     private final BooleanProperty test = new BooleanProperty("MoreAttack",false,this::isOldHypixel);
     private final IntProperty moreAttackDelay = new IntProperty("MoreAttackDelay",1,0,3,() -> this.isOldHypixel() && test.getValue());
@@ -93,6 +95,7 @@ public class KillAura extends Module {
     private final BooleanProperty alwaysRenderBlocking = new BooleanProperty("AlwaysRenderBlocking",true,this::isLag);
     private final BooleanProperty c09Instead = new BooleanProperty("C09Instead",true,this::isLag3Tick);
     private final BooleanProperty fullC09 = new BooleanProperty("FullC09(Will Cause Damage Less)",false,() -> isLag4Tick() | isLag5Tick());
+    private final BooleanProperty swapPlusFullC09;
     public final BooleanProperty autoBlockRequirePress;
     public final IntProperty autoBlockCPS;
     public final FloatProperty autoBlockRange;
@@ -138,6 +141,11 @@ public class KillAura extends Module {
     private boolean postBlock = false;
     private int testAttackTick = 0;
 
+    private int spTick = 0;
+    private boolean spSwapped = false;
+    private boolean spPostBlink = false;
+    private boolean spShouldAttack = true;
+
     public KillAura(){
         super("KillAura", false);
         this.mode = new ModeProperty("Mode", 0, new String[]{"Single", "Switch"});
@@ -150,8 +158,12 @@ public class KillAura extends Module {
                 "HypixelMode", 0, new String[]{"OldHypixel", "Without NoSlow", "Custom", "Lag"}, () -> this.autoBlock.getValue() == 2
         );
         this.lagMode = new ModeProperty(
-                "LagMode", 1, new String[]{"2Tick", "3Tick", "4Tick", "3Tick + 2Tick", "5Tick"}, () -> this.autoBlock.getValue() == 2 && this.hypixelMode.getValue() == 3
+                "LagMode", 1, new String[]{"2Tick", "3Tick", "4Tick", "3Tick + 2Tick", "5Tick"}, () -> this.autoBlock.getValue() == 2 && this.hypixelMode.getValue() == 3 && this.lagClass.getValue() == 0
         );
+        this.lagClass = new ModeProperty(
+                "LagClass", 0, new String[]{"Tick", "Swap+"}, () -> this.autoBlock.getValue() == 2 && this.hypixelMode.getValue() == 3
+        );
+        this.swapPlusFullC09 = new BooleanProperty("Swap+ FullC09", false, this::isLagSwapPlus);
         this.autoBlockRequirePress = new BooleanProperty("AutoBlock Require Press", false);
         this.autoBlockCPS = new IntProperty("AutoBlock Aps", 10, 1, 20);
         this.autoBlockRange = new FloatProperty("AutoBlock Range", 6.0F, 3.0F, 8.0F);
@@ -454,6 +466,11 @@ public class KillAura extends Module {
     public boolean isLag5Tick() {
         return this.isLag() && (this.lagMode.getValue() == 3 || this.lagMode.getValue() == 4);
     }
+
+
+    public boolean isLagSwapPlus() {
+        return this.isLag() && this.lagClass.getValue() == 1;
+    }
     public boolean shouldAutoBlock() {
         if (this.autoBlock.getValue() <= 1 || this.autoBlock.getValue() == 4) {
             return this.hasValidTarget();
@@ -480,6 +497,10 @@ public class KillAura extends Module {
                 this.attackDelayMS -= 50L;
             }
             boolean attack = this.target != null && this.canAttack();
+
+            if (this.isLagSwapPlus()) {
+                attack = attack && this.spShouldAttack;
+            }
             boolean block = attack && this.canAutoBlock();
             if (!block) {
                 Myau.blinkManager.setBlinkState(false, BlinkModules.AUTO_BLOCK);
@@ -495,6 +516,7 @@ public class KillAura extends Module {
                 else this.isBlocking = false;
                 this.fakeBlockState = false;
                 this.blockTick = 0;
+
                 if (this.blockingState && !PlayerUtil.isUsingItem()) {
                     this.stopBlock();
                 }
@@ -505,6 +527,7 @@ public class KillAura extends Module {
                 if (block) {
                     switch (this.autoBlock.getValue()) {
                         case 0:
+
                             if (PlayerUtil.isUsingItem() && this.allowPlayerBlocking.getValue()) {
                                 this.isBlocking = true;
                                 if (!this.isPlayerBlocking() && !Myau.playerStateManager.digging && !Myau.playerStateManager.placing) {
@@ -683,6 +706,12 @@ public class KillAura extends Module {
                                     }
                                     break;
                                 case 3:
+
+                                    if (this.isLagSwapPlus()) {
+                                        this.isBlocking = this.hasValidTarget();
+                                        this.fakeBlockState = this.alwaysRenderBlocking.getValue() && this.hasValidTarget();
+                                        break;
+                                    }
                                     switch (this.lagMode.getValue()) {
                                         case 0:
                                             if (this.hasValidTarget()) {
@@ -1046,6 +1075,70 @@ public class KillAura extends Module {
         }
     }
 
+
+    @EventTarget
+    public void onSwapPlus(SwapPlusEvent event) {
+        if (!this.isEnabled() || !this.isLagSwapPlus() || event.getType() != EventType.PRE) {
+            return;
+        }
+        if (!this.hasValidTarget()) {
+            Myau.blinkManager.setBlinkState(false, BlinkModules.AUTO_BLOCK);
+            this.spTick = 0;
+            this.spSwapped = false;
+            this.spPostBlink = false;
+            this.spShouldAttack = true;
+            if (this.blockingState) {
+                this.stopBlock();
+            }
+            return;
+        }
+        if (Myau.playerStateManager.digging || Myau.playerStateManager.placing) {
+            return;
+        }
+        switch (this.spTick) {
+            case 0:
+                if (!this.isPlayerBlocking()) {
+                    this.sendUseItem();
+                }
+                this.spTick = 1;
+                break;
+            case 1:
+                Myau.blinkManager.setBlinkState(true, BlinkModules.AUTO_BLOCK);
+                if (this.isPlayerBlocking()) {
+                    if (this.swapPlusFullC09.getValue()) {
+                        int handle = mc.thePlayer.inventory.currentItem;
+                        PacketUtil.sendPacket(new C09PacketHeldItemChange(altSlot(handle)));
+                        PacketUtil.sendPacket(new C09PacketHeldItemChange(handle % 7 + 2));
+                        PacketUtil.sendPacket(new C09PacketHeldItemChange(handle));
+                    }
+                    this.stopBlock();
+                }
+                this.spShouldAttack = false;
+                this.spTick = 2;
+                break;
+            case 2:
+                if (this.swapPlusFullC09.getValue()) {
+                    int handle = mc.thePlayer.inventory.currentItem;
+                    PacketUtil.sendPacket(new C09PacketHeldItemChange(altSlot(handle)));
+                    PacketUtil.sendPacket(new C09PacketHeldItemChange(handle % 7 + 2));
+                    PacketUtil.sendPacket(new C09PacketHeldItemChange(handle));
+                    this.stopBlock();
+                }
+                this.spTick = 3;
+                break;
+            case 3:
+                this.spPostBlink = true;
+                this.spShouldAttack = true;
+                if (this.attackDelayMS <= 50L) {
+                    this.spTick = 0;
+                }
+                break;
+            default:
+                this.spTick = 0;
+                break;
+        }
+    }
+
     @EventTarget
     public void onTick(TickEvent event) {
         if (this.isEnabled()) {
@@ -1170,6 +1263,7 @@ public class KillAura extends Module {
         if (this.isBlocking) {
             event.setCancelled(true);
         } else {
+
             if (this.isEnabled() && this.target != null && this.canAttack()) {
                 event.setCancelled(true);
             }
@@ -1189,6 +1283,7 @@ public class KillAura extends Module {
 
     @EventTarget
     public void onCancelUse(CancelUseEvent event) {
+
         if (this.isBlocking && this.blockingState) {
             event.setCancelled(true);
         }

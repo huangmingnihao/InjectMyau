@@ -41,6 +41,10 @@ public final class UnifiedLagHandler extends AbstractFastTrackProvider {
         return this.serverPosition;
     }
 
+    public boolean hasOutboundLag() {
+        return this.queue.hasPendingOutbound();
+    }
+
     @EventTarget(Priority.LOWEST)
     public void onPacket(PacketEvent event) {
         if (Minecraft.getMinecraft().getNetHandler() == null) {

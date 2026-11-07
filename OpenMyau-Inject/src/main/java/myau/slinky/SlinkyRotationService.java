@@ -13,13 +13,16 @@ public final class SlinkyRotationService {
    private static float manualPitch;
    private static float displayYaw = Float.NaN;
    private static float displayPitch = Float.NaN;
+
    private static boolean active;
+
    private static float cameraYaw;
    private static float cameraPitch;
    private static int priority;
 
    private SlinkyRotationService() {
    }
+
 
    public static void beginFrame(float rawMouseSensitivity) {
       float sensitivity = rawMouseSensitivity * 0.6F + 0.2F;
@@ -32,6 +35,7 @@ public final class SlinkyRotationService {
       priority = 0;
    }
 
+
    public static boolean claim(int requested) {
       if (Integer.compareUnsigned(requested, priority) < 0) {
          return false;
@@ -39,6 +43,7 @@ public final class SlinkyRotationService {
       priority = requested;
       return true;
    }
+
 
    public static boolean allows(int requested) {
       return Integer.compareUnsigned(requested, priority) >= 0;
@@ -48,6 +53,7 @@ public final class SlinkyRotationService {
       return active;
    }
 
+
    public static float storedYaw() {
       return cameraYaw;
    }
@@ -56,11 +62,13 @@ public final class SlinkyRotationService {
       return cameraPitch;
    }
 
+
    public static void beginCamera(float yaw, float pitch) {
       active = true;
       cameraYaw = yaw;
       cameraPitch = pitch;
    }
+
 
    public static void endCamera() {
       active = false;
@@ -78,6 +86,7 @@ public final class SlinkyRotationService {
       return cameraPitch;
    }
 
+
    public static void consumeMouse(float dx, float dy) {
       float yawStep = dx * 0.15F;
       float pitchStep = dy * 0.15F;
@@ -85,6 +94,7 @@ public final class SlinkyRotationService {
       cameraPitch = RotationMath.clamp(-90.0F, 90.0F, cameraPitch - pitchStep);
       manualDelta(yawStep, pitchStep);
    }
+
 
    public static void add(float yaw, float pitch) {
       pendingYaw += yaw;
@@ -118,6 +128,7 @@ public final class SlinkyRotationService {
       manualPitch = 0.0F;
    }
 
+
    public static void beforeDisplay(EntityPlayer player) {
       if (player == null) {
          return;
@@ -141,6 +152,7 @@ public final class SlinkyRotationService {
       }
    }
 
+
    public static float quantize(float value) {
       if (quantum != 0.0F && (-quantum >= value || value >= quantum)) {
          float quotient = value / quantum;
@@ -148,6 +160,7 @@ public final class SlinkyRotationService {
       }
       return 0.0F;
    }
+
 
    public static float[] consumePending() {
       if (quantum == 0.0F || (pendingYaw == 0.0F && pendingPitch == 0.0F)) {
@@ -162,6 +175,7 @@ public final class SlinkyRotationService {
       }
       return new float[]{yawStep, pitchStep};
    }
+
 
    public static void reset() {
       quantum = 0.0F;

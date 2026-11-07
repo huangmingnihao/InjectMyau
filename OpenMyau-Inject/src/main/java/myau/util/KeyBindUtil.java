@@ -5,8 +5,7 @@ import org.lwjgl.input.Keyboard;
 import org.lwjgl.input.Mouse;
 
 public class KeyBindUtil {
-    /**
-     */
+
     public static final int MAX_MOUSE_BUTTONS = 32;
 
     private static int safeButtonCount() {
@@ -25,9 +24,11 @@ public class KeyBindUtil {
         return count;
     }
 
+
     public static boolean isMouseButtonValid(int button) {
         return button >= 0 && button < MAX_MOUSE_BUTTONS;
     }
+
 
     public static boolean isKeyboardCodeValid(int keyCode) {
         return keyCode >= 0 && keyCode < Keyboard.KEYBOARD_SIZE;
@@ -61,6 +62,7 @@ public class KeyBindUtil {
                         String buttonName = Mouse.getButtonName(mouseButton);
                         return buttonName != null ? buttonName : "MOUSE" + mouseButton;
                     } catch (Throwable ignored) {
+
                         return "MOUSE" + mouseButton;
                     }
             }
@@ -85,6 +87,7 @@ public class KeyBindUtil {
             return false;
         }
     }
+
 
     public static boolean isMouseButtonDown(int button) {
         if (!isMouseButtonValid(button)) {
@@ -193,6 +196,7 @@ public class KeyBindUtil {
                 } catch (Throwable ignored) {
                 }
             }
+
             int buttons = Math.min(this.heldButtons.length, MAX_MOUSE_BUTTONS);
             for (int button = 0; button < buttons; button++) {
                 try {

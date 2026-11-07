@@ -59,6 +59,10 @@ public final class BiTrackLagNodeQueue {
         }
     }
 
+    public boolean hasPendingOutbound() {
+        return this.outgoingState.isBusy();
+    }
+
     public void releaseExpiredPackets(EnumLagDirection direction, long maxAgeMs) {
         switch (direction) {
             case INBOUND:
@@ -166,6 +170,12 @@ public final class BiTrackLagNodeQueue {
         private synchronized void clear() {
             this.track.clear();
             this.currentlyAwaiting = null;
+        }
+
+        private synchronized boolean isBusy() {
+            return !this.track.isEmpty()
+                    || this.currentlyAwaiting != null
+                    && !this.currentlyAwaiting.getTimeout().isTimedOut();
         }
 
         private AbstractLagNode pop() {

@@ -142,9 +142,12 @@ public class BedNuker extends Module {
         }
     }
     private EnumFacing getHitFacing(BlockPos blockPos) {
-        MovingObjectPosition hit = this.findVisibleHit(blockPos);
-        if (hit != null) {
-            return hit.sideHit;
+
+        if (this.noThroughWall.getValue()) {
+            MovingObjectPosition hit = this.findVisibleHit(blockPos);
+            if (hit != null) {
+                return hit.sideHit;
+            }
         }
         double x = (double) blockPos.getX() + 0.5 - mc.thePlayer.posX;
         double y = (double) blockPos.getY() + 0.25 - mc.thePlayer.posY - (double) mc.thePlayer.getEyeHeight();
@@ -378,7 +381,61 @@ public class BedNuker extends Module {
         return this.findTargetBed(mc.thePlayer.posX, mc.thePlayer.posY + (double) mc.thePlayer.getEyeHeight(), mc.thePlayer.posZ);
     }
 
+    private BlockPos findNearestBedLegacy() {
+        return this.findTargetBedLegacy(mc.thePlayer.posX, mc.thePlayer.posY + (double) mc.thePlayer.getEyeHeight(), mc.thePlayer.posZ);
+    }
+
+
+    private BlockPos findTargetBedLegacy(double x, double y, double z) {
+        ArrayList<BlockPos> targets = new ArrayList<>();
+        int sX = MathHelper.floor_double(x);
+        int sY = MathHelper.floor_double(y);
+        int sZ = MathHelper.floor_double(z);
+        for (int i = sX - 6; i <= sX + 6; i++) {
+            for (int j = sY - 6; j <= sY + 6; j++) {
+                for (int k = sZ - 6; k <= sZ + 6; k++) {
+                    BlockPos newPos = new BlockPos(i, j, k);
+                    if (!this.whiteList.getValue() || !this.bedWhitelist.contains(newPos)) {
+                        Block block = mc.theWorld.getBlockState(newPos).getBlock();
+                        if (block instanceof BlockBed
+                                && PlayerUtil.isBlockWithinReach(newPos, x, y, z, this.range.getValue().doubleValue())) {
+                            targets.add(newPos);
+                        }
+                    }
+                }
+            }
+        }
+        if (targets.isEmpty()) {
+            return null;
+        }
+        targets.sort(
+                Comparator.comparingDouble(
+                        blockPos -> blockPos.distanceSqToCenter(mc.thePlayer.posX, mc.thePlayer.posY + (double) mc.thePlayer.getEyeHeight(), mc.thePlayer.posZ)
+                )
+        );
+        for (BlockPos blockPos : targets) {
+            if (this.surroundings.getValue()) {
+                BlockPos pos = this.validateBedPlacement(blockPos);
+                if (pos != null) {
+                    Block block = mc.theWorld.getBlockState(pos).getBlock();
+                    if (this.toolCheck.getValue() && !this.hasProperTool(block)) {
+                        continue;
+                    }
+                    return pos;
+                }
+            }
+            return blockPos;
+        }
+        return null;
+    }
+
     private BedDigPath.Route findTargetBed(double x, double y, double z) {
+
+        if (!this.noThroughWall.getValue()) {
+            BlockPos legacy = this.findTargetBedLegacy(x, y, z);
+            return legacy == null ? null
+                    : new BedDigPath.Route(legacy, 1, 0.0, legacy.distanceSqToCenter(x, y, z));
+        }
         Set<BlockPos> visited = new HashSet<>();
         Map<BlockPos, Boolean> visibility = new HashMap<>();
         BedDigPath.Route best = null;
@@ -404,20 +461,7 @@ public class BedNuker extends Module {
                     if (!reachable) {
                         continue;
                     }
-                    BedDigPath.Route route;
-                    if (this.noThroughWall.getValue()) {
-                        route = this.findDigTarget(bed, visibility);
-                    } else {
-                        BlockPos target = this.surroundings.getValue() ? this.validateBedPlacement(bed) : bed;
-                        if (target == null) {
-                            target = bed;
-                        }
-                        if (!this.canDigBlock(target)) {
-                            continue;
-                        }
-                        route = new BedDigPath.Route(target, this.layersFromBed(target, bed) + 1,
-                                this.breakTicks(target), target.distanceSqToCenter(x, y, z));
-                    }
+                    BedDigPath.Route route = this.findDigTarget(bed, visibility);
                     if (route != null && (best == null || route.compareTo(best) < 0)) {
                         best = route;
                     }
@@ -482,17 +526,25 @@ public class BedNuker extends Module {
                     this.restoreSlot();
                     this.resetBreaking();
                 } else if (!this.isBed) {
-                    BedDigPath.Route nearest = this.findNearestBed();
-                    if (nearest != null && !nearest.target.equals(this.targetBed)
-                            && (this.activePath == null || nearest.blocks < this.activePath.blocks
-                            || nearest.blocks == this.activePath.blocks
-                            && nearest.ticks < this.activePath.ticks - this.tickCounter)) {
-                        PacketUtil.sendPacket(new C07PacketPlayerDigging(Action.ABORT_DESTROY_BLOCK,
-                                this.targetBed, this.getHitFacing(this.targetBed)));
-                        this.restoreSlot();
-                        this.resetBreaking();
+                        if (this.noThroughWall.getValue()) {
+                            BedDigPath.Route nearest = this.findNearestBed();
+                            if (nearest != null && !nearest.target.equals(this.targetBed)
+                                    && (this.activePath == null || nearest.blocks < this.activePath.blocks
+                                    || nearest.blocks == this.activePath.blocks
+                                    && nearest.ticks < this.activePath.ticks - this.tickCounter)) {
+                                PacketUtil.sendPacket(new C07PacketPlayerDigging(Action.ABORT_DESTROY_BLOCK,
+                                        this.targetBed, this.getHitFacing(this.targetBed)));
+                                this.restoreSlot();
+                                this.resetBreaking();
+                            }
+                        } else {
+
+                            BlockPos nearestBed = this.findNearestBedLegacy();
+                            if (nearestBed != null && mc.theWorld.getBlockState(nearestBed).getBlock() instanceof BlockBed) {
+                                this.resetBreaking();
+                            }
+                        }
                     }
-                }
             }
             if (this.targetBed != null) {
                 int slot = ItemUtil.findInventorySlot(mc.thePlayer.inventory.currentItem, mc.theWorld.getBlockState(this.targetBed).getBlock());
@@ -592,12 +644,18 @@ public class BedNuker extends Module {
                 return;
             }
             if (this.isReady()) {
-                MovingObjectPosition hit = this.findVisibleHit(this.targetBed);
-                if (this.noThroughWall.getValue() && hit == null) {
-                    return;
+                Vec3 point;
+                if (this.noThroughWall.getValue()) {
+                    MovingObjectPosition hit = this.findVisibleHit(this.targetBed);
+                    if (hit == null) {
+                        return;
+                    }
+                    point = hit.hitVec;
+                } else {
+
+                    point = new Vec3(this.targetBed.getX() + 0.5,
+                            this.targetBed.getY() + 0.5, this.targetBed.getZ() + 0.5);
                 }
-                Vec3 point = hit == null ? new Vec3(this.targetBed.getX() + 0.5,
-                        this.targetBed.getY() + 0.5, this.targetBed.getZ() + 0.5) : hit.hitVec;
                 double x = point.xCoord - mc.thePlayer.posX;
                 double y = point.yCoord - mc.thePlayer.posY - (double) mc.thePlayer.getEyeHeight();
                 double z = point.zCoord - mc.thePlayer.posZ;

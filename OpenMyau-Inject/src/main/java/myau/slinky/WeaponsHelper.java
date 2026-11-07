@@ -8,6 +8,7 @@ public final class WeaponsHelper {
    }
 
    public static boolean isWeapon(EntityPlayer player) {
+
       return player != null && ItemUtil.hasRawUnbreakingEnchant();
    }
 }

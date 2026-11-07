@@ -13,6 +13,7 @@ public abstract class Property<T> {
     private final BooleanSupplier visibleChecker;
     private T value;
     private Module owner;
+
     private String unitSuffix = "";
 
     protected Property(String name, Object value, BooleanSupplier visibleChecker) {
@@ -41,6 +42,7 @@ public abstract class Property<T> {
     public String getUnitSuffix() {
         return this.unitSuffix;
     }
+
 
     public void unit(String suffix) {
         this.unitSuffix = suffix == null ? "" : suffix;

@@ -65,6 +65,7 @@ public class InvManager extends SlinkyModule {
    public final BooleanProperty equip_armor = new BooleanProperty("equip-armor", false);
    public final BooleanProperty sort_hotbar = new BooleanProperty("sort-hotbar", false);
    public final BooleanProperty sort_hotbar_fallback = new BooleanProperty("sort-hotbar-fallback", true);
+
    public final BooleanProperty bind_sort = new BooleanProperty("bind-sort", false);
    public final ModeProperty slot1 = new ModeProperty("1", 0, HOTBAR_CATEGORIES);
    public final KeyProperty bind1 = new KeyProperty("1-key", KeyProperty.NONE, () -> this.bind_sort.getValue());
@@ -86,6 +87,7 @@ public class InvManager extends SlinkyModule {
    public final KeyProperty bind9 = new KeyProperty("9-key", KeyProperty.NONE, () -> this.bind_sort.getValue());
 
    public final BooleanProperty drop_trash = new BooleanProperty("drop-trash", false);
+
    public final IntProperty blocks = new IntProperty("blocks", 128, 64, 2304, () -> this.drop_trash.getValue());
    public final IntProperty projectiles = new IntProperty("projectiles", 64, 16, 2304, () -> this.drop_trash.getValue());
    public final IntProperty arrow = new IntProperty("arrow", 256, 0, 2304, () -> this.drop_trash.getValue());
@@ -98,6 +100,7 @@ public class InvManager extends SlinkyModule {
    private float timer;
    private float previousX;
    private float previousY;
+
    private int pendingSort = -1;
    private final boolean[] bindWasDown = new boolean[9];
    private KeyProperty[] slotKeys;
@@ -107,6 +110,7 @@ public class InvManager extends SlinkyModule {
       this.delay_after_open.unit("ms");
       this.speed.unit("x");
    }
+
 
    private static float ticks(float milliseconds) {
       return milliseconds / 50.0F;
@@ -141,6 +145,7 @@ public class InvManager extends SlinkyModule {
       this.resume = 0;
    }
 
+
    private int convertSlotIndex(int slot) {
       if (slot >= 36) {
          return 8 - (slot - 36);
@@ -167,6 +172,7 @@ public class InvManager extends SlinkyModule {
       return this.slotKeys;
    }
 
+
    private void scanBindKeys() {
       if (!this.flag("bind-sort")) {
          for (int i = 0; i < 9; i++) {
@@ -184,6 +190,7 @@ public class InvManager extends SlinkyModule {
          this.bindWasDown[i] = down;
       }
    }
+
 
    private void processPendingSort() {
       if (this.pendingSort < 0) {
@@ -214,6 +221,7 @@ public class InvManager extends SlinkyModule {
       this.delay(planned.source);
       this.phase = 3;
    }
+
 
    private int findTrashSlot() {
       ArrayList<Integer> armorBest = new ArrayList<>(Arrays.asList(-1, -1, -1, -1));
@@ -306,6 +314,7 @@ public class InvManager extends SlinkyModule {
       } else if (mc.thePlayer != null && mc.theWorld != null) {
          this.scanBindKeys();
          if (this.phase == 2) {
+
             this.processPendingSort();
             return;
          }
@@ -373,6 +382,7 @@ public class InvManager extends SlinkyModule {
             }
 
             if (this.phase == 6) {
+
                int junk = this.findTrashSlot();
                if (junk == -1) {
                   this.advance(2);

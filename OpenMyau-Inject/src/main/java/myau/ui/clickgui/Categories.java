@@ -111,6 +111,7 @@ public final class Categories {
                 add(modules, Stuck.class);
                 add(modules, Telly.class);
                 add(modules, AutoHeadHitter.class);
+                add(modules, PearlFireball.class);
                 add(modules, AutoHeal.class);
                 add(modules, AutoTool.class);
                 add(modules, ChestStealer.class);

@@ -312,6 +312,7 @@ public final class Hooks {
                 .at(Position.AFTER_INVOKE)
                 .invoking("net.minecraft.util.MovementInput", "updatePlayerMoveState", "()V")
                 .calls("onMoveInput").add();
+
         HookRegistry.hook(LOCAL_PLAYER, "onLivingUpdate", update).in(BridgeAssistCallbacks.OWNER)
                 .at(Position.AFTER_INVOKE)
                 .invoking("net.minecraft.util.MovementInput", "updatePlayerMoveState", "()V")
@@ -357,6 +358,7 @@ public final class Hooks {
                 .at(Position.REPLACE_INVOKE).ordinal(0)
                 .invokingUnmapped("java.util.List", "size", "()I")
                 .calls("entityCandidates", "(Ljava/util/List;)I").add();
+
         HookRegistry.hook(ENTITY_RENDERER, "getMouseOver", "(F)V").in(BridgeAssistCallbacks.OWNER)
                 .at(Position.HEAD)
                 .calls("onGetMouseOverHead", "()V").add();
@@ -396,8 +398,7 @@ public final class Hooks {
         registerFreelook();
     }
 
-    /**
-     */
+
     private static void registerFreelook() {
         String fl = FreeLookCallbacks.OWNER;
         String activeRenderInfo = "net.minecraft.client.renderer.ActiveRenderInfo";
@@ -412,6 +413,7 @@ public final class Hooks {
 
         HookRegistry.hook(ENTITY_RENDERER, "updateCameraAndRender", "(FJ)V").in(fl)
                 .at(Position.HEAD).calls("frameTick").add();
+
         HookRegistry.hook(ENTITY_RENDERER, "updateCameraAndRender", "(FJ)V").in(fl)
                 .at(Position.REPLACE_FIELD).getfield()
                 .field(MINECRAFT, "inGameHasFocus", "Z")
@@ -533,8 +535,7 @@ public final class Hooks {
                 .calls("fovSprinting", "(Lnet/minecraft/entity/player/EntityPlayer;)Z").add();
     }
 
-    /**
-     */
+
     private static void stuck() {
         String stuck = StuckCallbacks.OWNER;
 

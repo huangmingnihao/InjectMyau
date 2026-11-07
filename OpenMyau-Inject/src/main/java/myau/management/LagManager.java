@@ -81,6 +81,10 @@ public class LagManager {
         this.tickDelay = delay;
     }
 
+    public boolean isDelaying() {
+        return this.tickDelay > 0 || !this.packetQueue.isEmpty();
+    }
+
     public Vec3 getLastPosition() {
         return this.lastPosition;
     }

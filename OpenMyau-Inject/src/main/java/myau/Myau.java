@@ -56,6 +56,7 @@ import myau.module.modules.AntiVoid;
 import myau.module.modules.AutoAnduril;
 import myau.module.modules.AutoClicker;
 import myau.module.modules.AutoHeadHitter;
+import myau.module.modules.PearlFireball;
 import myau.module.modules.AutoHeal;
 import myau.module.modules.AutoPot;
 import myau.module.modules.AutoTool;
@@ -292,6 +293,7 @@ public class Myau {
         moduleManager.modules.put(Stuck.class, new Stuck());
         moduleManager.modules.put(Telly.class, new Telly());
         moduleManager.modules.put(AutoHeadHitter.class, new AutoHeadHitter());
+        moduleManager.modules.put(PearlFireball.class, new PearlFireball());
         moduleManager.modules.put(LagRange.class, new LagRange());
         moduleManager.modules.put(KnockbackDelay.class, new KnockbackDelay());
         moduleManager.modules.put(LightningTracker.class, new LightningTracker());

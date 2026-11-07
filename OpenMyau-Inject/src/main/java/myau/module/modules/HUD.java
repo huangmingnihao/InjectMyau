@@ -354,12 +354,7 @@ public class HUD extends Module {
         }
     }
 
-    /**
-     * Slinky 风格的圆角连接背景：相邻行通过四分之一圆平滑衔接，半透明背景互不重叠；
-     * 整块背景的四个外角（首行两顶角、末行两底角）同样做圆角，呈完整圆角卡片。
-     *
-     * @param corner 0=左上(π→3π/2) 1=右上(3π/2→2π) 2=右下(0→π/2) 3=左下(π/2→π)
-     */
+
     private void fillCornerFan(float centerX, float centerY, float radius, int corner,
                                int red, int green, int blue, int alpha) {
         if (radius <= 0.0F) {
@@ -394,7 +389,7 @@ public class HUD extends Module {
         GL11.glEnd();
     }
 
-    /** 把 from 颜色按比例 t 向 to 颜色插值，保留 from 的 alpha。 */
+
     private static int mixColor(int from, int to, float t) {
         t = Math.max(0.0F, Math.min(1.0F, t));
         int alpha = (from >>> 24) & 0xFF;
@@ -404,7 +399,7 @@ public class HUD extends Module {
         return (alpha << 24) | (red << 16) | (green << 8) | blue;
     }
 
-    /** 自上而下循环扫过的高光带：行中心越靠近亮带中心返回值越接近 1，用于文字扫光。 */
+
     private float shineFactor(float rowCenterY, float panelTop, float panelBottom, long now) {
         float span = Math.max(1.0F, panelBottom - panelTop);
         float speed = Math.max(0.1F, this.shineSpeed.getValue());
@@ -420,11 +415,7 @@ public class HUD extends Module {
         return x * x * (3.0F - 2.0F * x);
     }
 
-    /**
-     * 按 Slinky 规则填充整块背景形状；expand>0 时各边向外扩，用于叠加光晕层，
-     * 因此光晕轮廓与背景完全同形（该圆的地方圆、该平的地方平）。
-     * accent!=0 且 tintTop>0 时，颜色按行从顶部主题色向底部基础色渐变，做出渐变发光底板。
-     */
+
     private void fillConnectedShape(List<float[]> rows, float expand, int color, int accent, float tintTop) {
         boolean anchoredLeft = this.posX.getValue() == 0;
         float requestedRadius = (float) this.backgroundRounding.getValue();
@@ -449,7 +440,7 @@ public class HUD extends Module {
             float radius = Math.min(requestedRadius + expand, height);
             if (i + 1 < count) {
                 float[] next = rows.get(i + 1);
-                // 外扩量在相邻行差值中抵消，圆角半径因此与背景保持一致
+
                 radius = Math.min(radius, anchoredLeft
                         ? Math.max(0.0F, row[1] - next[1])
                         : Math.max(0.0F, next[0] - row[0]));
@@ -460,15 +451,15 @@ public class HUD extends Module {
                 RenderUtil.drawRect(left, top, right, bottom, rowColor);
                 continue;
             }
-            // 中段全宽矩形（顶部直角贴边，底部让出衔接圆角）
+
             if (bottom - radius > top) {
                 RenderUtil.drawRect(left, top, right, bottom - radius, rowColor);
             }
-            // 底部条带：只让出衔接侧
+
             float bandLeft = anchoredLeft ? left : left + radius;
             float bandRight = anchoredLeft ? right - radius : right;
             RenderUtil.drawRect(bandLeft, bottom - radius, bandRight, bottom, rowColor);
-            // 衔接圆角：左对齐在右下，右对齐在左下
+
             if (anchoredLeft) {
                 fillCornerFan(right - radius, bottom - radius, radius, 2, red, green, blue, alpha);
             } else {
@@ -477,10 +468,7 @@ public class HUD extends Module {
         }
     }
 
-    /**
-     * Slinky 风格的圆角连接背景：每行只在衔接侧（左对齐为右下、右对齐为左下）做一个圆角，
-     * 相邻行通过四分之一圆平滑衔接，半透明背景互不重叠；贴屏幕边缘的角全部保持直角，避免漏空隙。
-     */
+
     private void drawConnectedBackground(List<float[]> rows) {
         if (rows.isEmpty() || this.background.getValue() <= 0) {
             return;
@@ -555,7 +543,7 @@ public class HUD extends Module {
         float lastBoxTop = 0.0F;
         float lastBoxBottom = 0.0F;
         int lastColor = 0;
-        // 先收集所有可见行的 box，统一绘制圆角连接背景
+
         List<float[]> backgroundRows = new ArrayList<>();
         for (Entry entry : this.activeEntries) {
             if (entry.animationTime == 0.0F) {

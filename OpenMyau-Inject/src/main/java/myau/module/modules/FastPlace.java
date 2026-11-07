@@ -20,10 +20,6 @@ import net.minecraft.network.play.client.C08PacketPlayerBlockPlacement;
 import net.minecraft.util.BlockPos;
 import net.minecraft.util.MovingObjectPosition;
 
-/**
- * RightClickDelayTickEvent → TickEvent(PRE)
- * SendPacketEvent → PacketEvent(SEND)
- */
 public class FastPlace extends Module {
     private static final Minecraft mc = Minecraft.getMinecraft();
 
@@ -157,6 +153,7 @@ public class FastPlace extends Module {
         return !requireActivationDelay
                 || now - this.rightClickStartTime >= (long) this.activationTime.getValue().intValue();
     }
+
 
     private static boolean containsId(String list, String id) {
         if (list == null || list.isEmpty() || id == null) {

@@ -180,6 +180,7 @@ public final class GlyphFontRenderer implements RavenFontRenderer {
         float green = ((color >>> 8) & 0xFF) / 255.0F;
         float blue = (color & 0xFF) / 255.0F;
         GlStateManager.color(red, green, blue, alpha);
+
         Tessellator tessellator = Tessellator.getInstance();
         WorldRenderer renderer = tessellator.getWorldRenderer();
         renderer.begin(GL11.GL_QUADS, DefaultVertexFormats.POSITION_TEX);

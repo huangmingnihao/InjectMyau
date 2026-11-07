@@ -451,6 +451,7 @@ public class RenderUtil {
         private final FloatBuffer screenCoords = GLAllocation.createDirectFloatBuffer(4);
         private int viewportWidth;
         private int viewportHeight;
+
         private double screenScale = 1.0;
     }
 
@@ -469,6 +470,7 @@ public class RenderUtil {
         context.viewport.rewind();
         context.viewportWidth = context.viewport.get(2);
         context.viewportHeight = context.viewport.get(3);
+
         context.screenScale = (context.viewportHeight > 0 && scaledHeight > 0)
                 ? (double) context.viewportHeight / (double) scaledHeight
                 : 1.0;
@@ -483,8 +485,7 @@ public class RenderUtil {
         return context == null ? 0 : context.viewportHeight;
     }
 
-    /**
-     */
+
     public static void applyProjectionContext(ProjectionContext context) {
         context.projection.rewind();
         context.modelView.rewind();
@@ -497,9 +498,11 @@ public class RenderUtil {
         GL11.glLoadMatrix(context.modelView);
     }
 
+
     public static int getBoundFramebuffer() {
         return GL11.glGetInteger(0x8CA6);
     }
+
 
     public static void bindFramebuffer(int framebufferId) {
         OpenGlHelper.glBindFramebuffer(OpenGlHelper.GL_FRAMEBUFFER, framebufferId);

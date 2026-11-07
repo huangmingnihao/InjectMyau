@@ -41,8 +41,6 @@ import java.util.List;
 import java.util.Locale;
 import java.util.stream.Collectors;
 
-/**
- */
 public class NameTags extends Module {
     private static final Minecraft mc = Minecraft.getMinecraft();
     private static final DecimalFormat healthFormatter = new DecimalFormat("0.0", new DecimalFormatSymbols(Locale.US));

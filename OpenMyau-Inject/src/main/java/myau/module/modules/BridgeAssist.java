@@ -26,7 +26,6 @@ import net.minecraft.util.MathHelper;
 import net.minecraft.util.MovingObjectPosition;
 import net.minecraft.util.Vec3;
 
-
 public class BridgeAssist extends Module {
     private static final Minecraft mc = Minecraft.getMinecraft();
     private static final EnumFacing[] SIDES = {
@@ -42,6 +41,7 @@ public class BridgeAssist extends Module {
     public final BooleanProperty lookingDown = new BooleanProperty("looking-down", false);
     public final BooleanProperty notMovingForward = new BooleanProperty("not-moving-forward", false);
     public final BooleanProperty prePlace = new BooleanProperty("pre-place", false);
+
     public final BooleanProperty autoSneak = new BooleanProperty("auto-sneak", false);
 
     private boolean sneakingFromModule;
@@ -54,8 +54,10 @@ public class BridgeAssist extends Module {
 
     private static boolean updatedThisTick = false;
     private static float fakeYaw = Float.NaN;
+
     private static float realYaw = Float.NaN;
     private static float realPitch = Float.NaN;
+
     private static boolean movementFixActive = false;
     private static float fakePitch = Float.NaN;
 
@@ -85,6 +87,7 @@ public class BridgeAssist extends Module {
         fakePitch = Float.NaN;
     }
 
+
     public static float[] getFakeRotation() {
         BridgeAssist inst = (BridgeAssist) Myau.moduleManager.modules.get(BridgeAssist.class);
         if (inst != null) {
@@ -95,6 +98,7 @@ public class BridgeAssist extends Module {
         }
         return new float[]{fakeYaw, fakePitch};
     }
+
 
     private void updateFakeRotation() {
         if (mc.thePlayer == null || mc.theWorld == null || mc.currentScreen != null
@@ -146,6 +150,7 @@ public class BridgeAssist extends Module {
 
         float baseYaw = AccessorEntityPlayerSP.getLastReportedYaw(mc.thePlayer);
         float[] sm = smoothRotation(baseYaw, basePitch, target.yaw, target.pitch, 15, 20.0F);
+
         float[] fixed = fixRotation(sm[0], sm[1], baseYaw, basePitch);
         fakeYaw = fixed[0];
         fakePitch = fixed[1];
@@ -153,11 +158,13 @@ public class BridgeAssist extends Module {
 
     @EventTarget
     public void onUpdate(UpdateEvent event) {
+
         if (mc.thePlayer != null) {
             realYaw = mc.thePlayer.rotationYaw;
             realPitch = mc.thePlayer.rotationPitch;
         }
         if (event.getType() == EventType.POST) {
+
             updatedThisTick = false;
             movementFixActive = false;
             return;
@@ -165,15 +172,19 @@ public class BridgeAssist extends Module {
         if (event.getType() != EventType.PRE || !this.isEnabled()) {
             return;
         }
+
         if (!updatedThisTick) {
             this.updateFakeRotation();
         }
         if (!Float.isNaN(fakeYaw) && !Float.isNaN(fakePitch)) {
             event.setRotation(fakeYaw, fakePitch, 1);
+
             event.setPervRotation(fakeYaw, 1);
             movementFixActive = true;
         }
     }
+
+
 
     public static boolean isHandlingMovementFix() {
         return movementFixActive;
@@ -243,6 +254,7 @@ public class BridgeAssist extends Module {
                 || mc.thePlayer.capabilities.isFlying) {
             return;
         }
+
         if (!this.autoSneak.getValue()) {
             this.sneakingFromModule = false;
             return;
@@ -294,6 +306,7 @@ public class BridgeAssist extends Module {
         }
 
         SimulatedPlayer sim = SimulatedPlayer.fromKeyBinds();
+
         sim.rotationYaw = realYaw;
         sim.rotationPitch = realPitch;
         sim.movementInput.sneak = false;
@@ -518,7 +531,6 @@ public class BridgeAssist extends Module {
         return new TargetResult(yaw, bestPitch, bestSupport, bestFace);
     }
 
-
     private static boolean isReplaceable(BlockPos blockPos) {
         if (mc.theWorld == null) {
             return true;
@@ -585,9 +597,11 @@ public class BridgeAssist extends Module {
         return MathHelper.clamp_float(value, -90.0F, 90.0F);
     }
 
+
     private static float unwrapYaw(float yaw, float prevYaw) {
         return prevYaw + ((((yaw - prevYaw + 180.0F) % 360.0F) + 360.0F) % 360.0F - 180.0F);
     }
+
 
     private static float[] fixRotation(float targetYaw, float targetPitch, float baseYaw, float basePitch) {
         targetYaw = unwrapYaw(targetYaw, baseYaw);
@@ -599,7 +613,6 @@ public class BridgeAssist extends Module {
         float quantPitch = (float) ((double) Math.round((double) deltaPitch / grid) * grid);
         return new float[]{baseYaw + quantYaw, clampPitch(basePitch + quantPitch)};
     }
-
 
     private static class SimulatedPlayer {
         double posX, posY, posZ;

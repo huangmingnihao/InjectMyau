@@ -68,6 +68,7 @@ public class AimAssist extends SlinkyModule {
    public final BooleanProperty ignore_invis = new BooleanProperty("ignore-invis", true, () -> this.mode.getValue() != MODE_NORMAL);
    public final BooleanProperty bot_check = new BooleanProperty("bot-check", true);
    public final BooleanProperty require_line_of_sight = new BooleanProperty("require-line-of-sight", true, () -> this.mode.getValue() != MODE_NORMAL);
+
    public final FloatProperty normal_horizontal_speed = new FloatProperty("normal-horizontal-speed", 3.0F, 0.0F, 10.0F, () -> this.mode.getValue() == MODE_NORMAL);
    public final FloatProperty normal_vertical_speed = new FloatProperty("normal-vertical-speed", 0.0F, 0.0F, 10.0F, () -> this.mode.getValue() == MODE_NORMAL);
    public final PercentProperty normal_smoothing = new PercentProperty("normal-smoothing", 50, () -> this.mode.getValue() == MODE_NORMAL);
@@ -88,10 +89,12 @@ public class AimAssist extends SlinkyModule {
    private EntityPlayer target;
    private boolean targetActive;
    private boolean silent;
+
    private final TimerUtil normalTimer = new TimerUtil();
    private Vec3 previousAim = new Vec3(0.0, 0.0, 0.0);
    private Vec3 currentAim = this.previousAim;
    private long tieCounter;
+
    private double previousDisplaySeconds;
 
    public AimAssist() {
@@ -141,6 +144,7 @@ public class AimAssist extends SlinkyModule {
       return this.targetActive;
    }
 
+
    private void exitSilent() {
       if (this.silent && mc.thePlayer != null && SlinkyRotationService.isCameraActive()) {
          float yaw = SlinkyRotationService.cameraYaw();
@@ -158,17 +162,21 @@ public class AimAssist extends SlinkyModule {
       SlinkyRotationService.endCamera();
    }
 
+
    @EventTarget
    public void onRender3D(Render3DEvent event) {
       if (!this.isEnabled() || mc.thePlayer == null || mc.theWorld == null) {
          return;
       }
       if (this.choice("mode") == MODE_NORMAL) {
+
          return;
       }
+
       if (!this.silent) {
          SlinkyRotationService.beforeDisplay(mc.thePlayer);
       }
+
       double now = (double) System.nanoTime() / 1.0E9;
       if (this.previousDisplaySeconds == 0.0) {
          this.previousDisplaySeconds = now;
@@ -182,17 +190,20 @@ public class AimAssist extends SlinkyModule {
       }
    }
 
+
    private void rotate(float partialTicks, float time) {
       if (!this.focused()) {
          return;
       }
       if (this.silent && this.choice("mode") != MODE_SILENT) {
+
          this.exitSilent();
       }
       float currentYaw = mc.thePlayer.rotationYaw + SlinkyRotationService.pendingYaw();
       float currentPitch = mc.thePlayer.rotationPitch + SlinkyRotationService.pendingPitch();
       if (!this.targetActive) {
          if (this.silent) {
+
             if (SlinkyRotationService.storedRotationValid() && SlinkyRotationService.claim(100)) {
                float yaw = RotationMath.wrap(SlinkyRotationService.storedYaw() - currentYaw);
                float pitch = SlinkyRotationService.storedPitch() - currentPitch;
@@ -207,6 +218,7 @@ public class AimAssist extends SlinkyModule {
          }
       } else if (SlinkyRotationService.claim(100)) {
          if (!this.silent && this.choice("mode") == MODE_SILENT) {
+
             this.silent = true;
          }
          if (!this.silent || SlinkyRotationService.storedRotationValid()) {
@@ -218,6 +230,7 @@ public class AimAssist extends SlinkyModule {
             float yaw = RotationMath.wrap(desired[0] - currentYaw);
             float pitch = desired[1] - currentPitch;
             if (this.silent && !this.flag("silent-ignore-manual-aim")) {
+
                float restoreYaw = RotationMath.wrap(SlinkyRotationService.storedYaw() - currentYaw);
                float restorePitch = SlinkyRotationService.storedPitch() - currentPitch;
                float targetYaw = RotationMath.wrap(desired[0] - SlinkyRotationService.storedYaw());
@@ -233,6 +246,7 @@ public class AimAssist extends SlinkyModule {
       }
    }
 
+
    private void applyStep(float yaw, float pitch, float time) {
       float[] step = this.aimStep(
             yaw, pitch, time, RecoveredRandom.now(),
@@ -242,6 +256,7 @@ public class AimAssist extends SlinkyModule {
       }
       SlinkyRotationService.add(step[0], step[1]);
    }
+
 
    private void applyPending(boolean alsoArm) {
       float[] step = SlinkyRotationService.consumePending();
@@ -257,6 +272,7 @@ public class AimAssist extends SlinkyModule {
       mc.thePlayer.prevRotationYaw = yaw;
       mc.thePlayer.prevRotationPitch = pitch;
       if (alsoArm) {
+
          mc.thePlayer.prevRenderArmYaw = yaw;
          mc.thePlayer.prevRenderArmPitch = pitch;
          mc.thePlayer.renderArmYaw = yaw;
@@ -273,10 +289,13 @@ public class AimAssist extends SlinkyModule {
          return;
       }
       if (this.silent) {
+
          event.setRotation(mc.thePlayer.rotationYaw, mc.thePlayer.rotationPitch, 0);
+
          event.setPervRotation(mc.thePlayer.rotationYaw, 0);
       }
    }
+
 
    @EventTarget
    public void onTick(TickEvent event) {
@@ -286,6 +305,7 @@ public class AimAssist extends SlinkyModule {
       if (event.getType() == EventType.PRE) {
          if (mc.thePlayer != null && mc.theWorld != null) {
             SlinkyRotationService.beginFrame(mc.gameSettings.mouseSensitivity);
+
             if (this.targetActive && this.target != null) {
                SlinkyRotationService.claim(100);
             }
@@ -296,6 +316,7 @@ public class AimAssist extends SlinkyModule {
             return;
          }
          if (this.choice("mode") == MODE_NORMAL) {
+
             if (this.silent) {
                this.exitSilent();
                SlinkyRotationService.reset();
@@ -305,6 +326,7 @@ public class AimAssist extends SlinkyModule {
             return;
          }
          this.updateTarget();
+
          if (this.silent && !SlinkyRotationService.storedRotationValid()) {
             SlinkyRotationService.beginCamera(mc.thePlayer.rotationYaw, mc.thePlayer.rotationPitch);
          }
@@ -321,6 +343,7 @@ public class AimAssist extends SlinkyModule {
          return false;
       } else if (TeamUtil.isFriend(candidate) || TeamUtil.isSameTeam(candidate)
             || (this.flag("bot-check") && TeamUtil.isBot(candidate))) {
+
          return false;
       } else {
          Vec3 position = new Vec3(candidate.posX, candidate.posY, candidate.posZ);
@@ -404,6 +427,7 @@ public class AimAssist extends SlinkyModule {
       }
    }
 
+
    private void updateTarget() {
       SlinkyRotationService.clearManual();
       if (!this.focused()) {
@@ -427,6 +451,7 @@ public class AimAssist extends SlinkyModule {
             this.clearTarget();
          } else {
             Vec3 eye = new Vec3(mc.thePlayer.posX, mc.thePlayer.posY + 1.62, mc.thePlayer.posZ);
+
             float viewYaw = SlinkyRotationService.storedRotationValid()
                   ? SlinkyRotationService.storedYaw() : mc.thePlayer.rotationYaw;
             Score best = new Score((double) ((float) this.range("range").upper), (float) this.range("fov").upper);
@@ -520,6 +545,7 @@ public class AimAssist extends SlinkyModule {
             pitch = 0.0F;
          }
       } else {
+
          float hSpeed = this.number("horizontal-speed");
          float vSpeed = this.number("vertical-speed");
          hSpeed = RotationMath.max(5.0F, hSpeed);

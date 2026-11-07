@@ -20,20 +20,17 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
-/**
- *
- *
- *
- */
 public class AntiBot extends Module {
     private static final Minecraft mc = Minecraft.getMinecraft();
 
     public final BooleanProperty delay = new BooleanProperty("delay", false);
     public final FloatProperty delaySeconds = new FloatProperty("delay-seconds", 0.5F, 0.5F, 15.0F, 0.5F,
             () -> this.delay.getValue());
+
     public final BooleanProperty tablist = new BooleanProperty("tablist-check", false);
 
     private static final Map<Integer, Long> joinTime = new ConcurrentHashMap<Integer, Long>();
+
     private static volatile List<String> tabNames = Collections.emptyList();
 
     public AntiBot() {
@@ -50,6 +47,7 @@ public class AntiBot extends Module {
             joinTime.clear();
             return;
         }
+
         if (tablist.getValue()) {
             List<String> names = new ArrayList<String>();
             for (NetworkPlayerInfo info : mc.getNetHandler().getPlayerInfoMap()) {
@@ -63,6 +61,7 @@ public class AntiBot extends Module {
         } else {
             tabNames = Collections.emptyList();
         }
+
         if (delay.getValue() && mc.theWorld != null) {
             long now = System.currentTimeMillis();
             for (Object o : mc.theWorld.playerEntities) {
@@ -71,6 +70,7 @@ public class AntiBot extends Module {
                     joinTime.put(Integer.valueOf(p.getEntityId()), Long.valueOf(now));
                 }
             }
+
             long windowMs = (long) (delaySeconds.getValue().floatValue() * 1000.0F);
             joinTime.values().removeIf(t -> t.longValue() < now - windowMs);
         } else if (!joinTime.isEmpty()) {
@@ -87,12 +87,14 @@ public class AntiBot extends Module {
             return false;
         }
         if (entity == null || !(entity instanceof EntityPlayer)) {
+
             return false;
         }
         EntityPlayer p = (EntityPlayer) entity;
         if (p == mc.thePlayer) {
             return false;
         }
+
         if (module.delay.getValue() && joinTime.containsKey(Integer.valueOf(p.getEntityId()))) {
             return true;
         }
@@ -102,29 +104,38 @@ public class AntiBot extends Module {
         if (p.getName().isEmpty()) {
             return true;
         }
+
         if (module.tablist.getValue() && !tabNames.contains(p.getName())) {
             return true;
         }
+
         if (p.getHealth() != 20.0F && p.getName().startsWith("§c")) {
             return true;
         }
+
         if (p.maxHurtTime == 0) {
+
             String unformatted = canonicalName(p);
             if (p.getHealth() == 20.0F) {
+
                 if (unformatted.length() == 10 && unformatted.charAt(0) != '§') {
                     return true;
                 }
+
                 if (unformatted.length() == 12 && p.isPlayerSleeping() && unformatted.charAt(0) == '§') {
                     return true;
                 }
+
                 if (unformatted.length() >= 7 && unformatted.charAt(2) == '['
                         && unformatted.charAt(3) == 'N' && unformatted.charAt(6) == ']') {
                     return true;
                 }
+
                 if (p.getName().contains(" ")) {
                     return true;
                 }
             } else if (p.isInvisible()) {
+
                 if (unformatted.length() >= 3 && unformatted.charAt(0) == '§'
                         && unformatted.charAt(1) == 'c') {
                     return true;
@@ -134,8 +145,7 @@ public class AntiBot extends Module {
         return false;
     }
 
-    /**
-     */
+
     private static String canonicalName(EntityPlayer p) {
         ScorePlayerTeam team = (ScorePlayerTeam) p.getTeam();
         if (team == null) {

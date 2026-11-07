@@ -26,8 +26,6 @@ import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
-/**
- */
 public class ModernClickGui extends GuiScreen implements ClickGuiScreen {
     private static final float PANEL_RADIUS = 16.0F;
     private static final float NAV_RADIUS = 8.0F;
@@ -51,7 +49,9 @@ public class ModernClickGui extends GuiScreen implements ClickGuiScreen {
     private static final int NAV_ALTS = 1;
     private static final String[] NAV_LABELS = {"Modules", "Alts"};
     private static final String[] ALT_BUTTONS = {"Session", "Cookie", "Add Token"};
+
     private static final String ENABLED_TAB = "Enabled";
+
 
     private static final String BRAND = "myau";
 
@@ -62,12 +62,15 @@ public class ModernClickGui extends GuiScreen implements ClickGuiScreen {
     private boolean entriesBuilt;
 
     private Category selectedCategory;
+
     private boolean enabledFilter;
     private String search = "";
     private boolean searchFocused;
     private boolean altsPage;
     private float scroll;
+
     private boolean[] searchHeldKeys;
+
 
     private boolean pickerOpen;
     private Property<?> pickerProperty;
@@ -96,7 +99,6 @@ public class ModernClickGui extends GuiScreen implements ClickGuiScreen {
         return "Modern";
     }
 
-
     private void buildEntries() {
         if (this.entriesBuilt) {
             return;
@@ -121,6 +123,7 @@ public class ModernClickGui extends GuiScreen implements ClickGuiScreen {
         Keyboard.enableRepeatEvents(true);
         this.computeLayout();
     }
+
 
     public static void openImagePicker(Property<?> property) {
         if (Minecraft.getMinecraft().currentScreen instanceof ModernClickGui) {
@@ -155,7 +158,6 @@ public class ModernClickGui extends GuiScreen implements ClickGuiScreen {
         return false;
     }
 
-
     private void computeLayout() {
         this.winW = Math.max(180.0F, Math.min(this.width - 40.0F, 470.0F));
         this.winH = Math.max(140.0F, Math.min(this.height - 40.0F, 320.0F));
@@ -180,6 +182,7 @@ public class ModernClickGui extends GuiScreen implements ClickGuiScreen {
         float x = left;
         float y = this.winY + 38.0F;
         Category[] values = Category.values();
+
         for (int index = 0; index <= values.length + 1; index++) {
             Category category = null;
             boolean enabledOnly = false;
@@ -241,6 +244,7 @@ public class ModernClickGui extends GuiScreen implements ClickGuiScreen {
         return Math.max(40.0F, this.contentW - 20.0F);
     }
 
+
     private float altButtonY() {
         return this.winY + this.winH - 22.0F;
     }
@@ -262,7 +266,6 @@ public class ModernClickGui extends GuiScreen implements ClickGuiScreen {
         Module module = Myau.moduleManager.getModule(GuiModule.class);
         return module instanceof GuiModule ? (GuiModule) module : null;
     }
-
 
     private float pickerW() {
         return Math.min(220.0F, this.width - 40.0F);
@@ -369,7 +372,6 @@ public class ModernClickGui extends GuiScreen implements ClickGuiScreen {
         }
     }
 
-
     @Override
     public void drawScreen(int mouseX, int mouseY, float partialTicks) {
         GuiRender.setRenderScale(1.0);
@@ -408,14 +410,14 @@ public class ModernClickGui extends GuiScreen implements ClickGuiScreen {
         GuiRender.resetScissors();
     }
 
-    /**
-     */
+
     private void drawGlass(int mouseX, int mouseY) {
         GuiModule gui = this.guiModule();
         if (gui == null || !gui.backgroundBlur.getValue() || !ModernUi.glassReady()) {
             return;
         }
         ModernUi.glassBegin();
+
         this.drawSidebar(mouseX, mouseY);
         if (this.altsPage) {
             this.drawAlts(mouseX, mouseY);
@@ -438,6 +440,7 @@ public class ModernClickGui extends GuiScreen implements ClickGuiScreen {
         if (texture > 0) {
             int[] size = ModernUi.imageDimensions(gui.backgroundImage.getValue());
             if (size != null && size[0] > 0 && size[1] > 0) {
+
                 float panelAspect = this.winW / this.winH;
                 float imageAspect = (float) size[0] / (float) size[1];
                 float u0 = 0.0F;
@@ -462,6 +465,7 @@ public class ModernClickGui extends GuiScreen implements ClickGuiScreen {
 
     private void drawSidebar(int mouseX, int mouseY) {
         if (ModernUi.glassCollecting()) {
+
             for (int index = 0; index < NAV_LABELS.length; index++) {
                 ModernUi.glassAdd(this.winX + 8.0F, this.navTop(index),
                         this.sidebarW - 16.0F, NAV_HEIGHT, ModernUi.visual(NAV_RADIUS));
@@ -515,6 +519,7 @@ public class ModernClickGui extends GuiScreen implements ClickGuiScreen {
             for (Tab tab : this.tabs) {
                 ModernUi.glassAdd(tab.x, tab.y, tab.width, TAB_HEIGHT, ModernUi.visual(TAB_RADIUS));
             }
+
             ModernUi.glassClip(this.listY, this.listY + this.listH);
         } else {
             boolean searchHovered = mouseX >= searchX && mouseX <= searchX + searchW
@@ -641,8 +646,6 @@ public class ModernClickGui extends GuiScreen implements ClickGuiScreen {
     }
 
 
-    /**
-     */
     private void pollSearchKeys() {
         if (this.searchHeldKeys == null || this.searchHeldKeys.length != Keyboard.KEYBOARD_SIZE) {
             this.searchHeldKeys = new boolean[Keyboard.KEYBOARD_SIZE];
@@ -669,6 +672,7 @@ public class ModernClickGui extends GuiScreen implements ClickGuiScreen {
             return false;
         }
     }
+
 
     private static char searchChar(int key, boolean shift) {
         String name;
@@ -730,7 +734,6 @@ public class ModernClickGui extends GuiScreen implements ClickGuiScreen {
                 return 0;
         }
     }
-
 
     @Override
     protected void mouseClicked(int mouseX, int mouseY, int button) {
@@ -848,6 +851,7 @@ public class ModernClickGui extends GuiScreen implements ClickGuiScreen {
                     this.scroll = 0.0F;
                 }
             }
+
             return;
         }
         if (key == Keyboard.KEY_ESCAPE) {
@@ -885,8 +889,10 @@ public class ModernClickGui extends GuiScreen implements ClickGuiScreen {
         return false;
     }
 
+
     private static final class Tab {
         private final Category category;
+
         private final boolean enabledOnly;
         private final float x;
         private final float y;

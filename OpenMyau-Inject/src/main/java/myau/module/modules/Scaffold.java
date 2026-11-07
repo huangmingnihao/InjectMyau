@@ -778,8 +778,7 @@ public class Scaffold extends Module {
             }
         }
     }
-    /**
-     */
+
     public static boolean isHandlingMovementFix() {
         Scaffold scaffold = (Scaffold) Myau.moduleManager.modules.get(Scaffold.class);
         return scaffold != null && scaffold.isEnabled()

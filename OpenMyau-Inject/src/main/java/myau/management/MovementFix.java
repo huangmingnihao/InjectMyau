@@ -21,9 +21,11 @@ public class MovementFix {
         if (!RotationState.isActived() || RotationState.getPriority() < 0) {
             return;
         }
+
         if (BridgeAssist.isHandlingMovementFix()) {
             return;
         }
+
         if (Scaffold.isHandlingMovementFix()) {
             return;
         }

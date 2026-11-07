@@ -9,9 +9,6 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.client.entity.EntityPlayerSP;
 import net.minecraft.util.MovementInput;
 
-/**
- * StuckPreLivingUpdateEvent / StuckMoveEntityEvent /
- */
 public final class StuckCallbacks {
     public static final String OWNER = "myau/inject/StuckCallbacks";
     private StuckCallbacks() {

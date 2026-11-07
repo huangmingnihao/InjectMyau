@@ -141,8 +141,7 @@ public class RotationUtil {
         return MathHelper.wrapAngleTo180_float((float) (Math.atan2(z2 - z1, x2 - x1) * 180.0 / Math.PI) - 90.0f - RotationUtil.mc.thePlayer.rotationYaw);
     }
 
-    /**
-     */
+
     private static Vec3 lookVector(float yaw, float pitch) {
         double yawRad = Math.toRadians(yaw);
         double pitchRad = Math.toRadians(pitch);

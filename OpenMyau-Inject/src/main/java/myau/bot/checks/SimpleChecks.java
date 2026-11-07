@@ -48,6 +48,7 @@ public final class SimpleChecks {
         public NpcUuidCheck() {
             super("npc-uuid");
         }
+
         @Override
         public void update() {
             for (EntityPlayer player : others()) {
@@ -169,6 +170,7 @@ public final class SimpleChecks {
         private boolean looksLikeBot(EntityPlayer player) {
             NetworkPlayerInfo info = mc.getNetHandler().getPlayerInfo(player.getName());
             if (info == null) {
+
                 return true;
             }
             if (!ServerUtil.isHypixel()) {
@@ -177,12 +179,16 @@ public final class SimpleChecks {
             if (player.isDead || player.getName().isEmpty()) {
                 return true;
             }
+
             if (player.getName().startsWith("§k")) {
+
                 return player.isInvisible();
             }
             if (info.getResponseTime() < 1) {
+
                 return true;
             }
+
             if (player.getHealth() != 20.0f && player.getName().startsWith("§c")) {
                 return true;
             }
@@ -190,22 +196,28 @@ public final class SimpleChecks {
                 String plain = player.getDisplayName().getUnformattedText();
                 if (player.getHealth() == 20.0f) {
                     if (plain.length() == 10 && plain.charAt(0) != '§') {
+
                         return true;
                     }
                     if (plain.length() == 12 && player.isPlayerSleeping() && plain.charAt(0) == '§') {
+
                         return true;
                     }
                     if (plain.length() >= 7 && plain.charAt(2) == '[' && plain.charAt(3) == 'N' && plain.charAt(6) == ']') {
+
                         return true;
                     }
                     if (player.getName().contains(" ")) {
+
                         return true;
                     }
                 } else if (player.isInvisible() && plain.length() >= 3
                         && plain.charAt(0) == '§' && plain.charAt(1) == 'c') {
+
                     return true;
                 }
             }
+
             ScorePlayerTeam team = info.getPlayerTeam();
             if (team == null || !team.getTeamName().isEmpty()) {
                 return false;

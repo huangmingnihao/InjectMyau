@@ -39,6 +39,7 @@ public final class FreeLookCallbacks {
         return module != null && module.isEnabled() && FreeLook.perspectiveToggled;
     }
 
+
     private static boolean silentActive() {
         return SlinkyRotationService.isCameraActive();
     }
@@ -194,6 +195,7 @@ public final class FreeLookCallbacks {
                 return false;
             }
             if (silentActive()) {
+
                 MouseHelper helper = AccessorMinecraft.getMouseHelper(mc);
                 if (helper == null) {
                     return false;

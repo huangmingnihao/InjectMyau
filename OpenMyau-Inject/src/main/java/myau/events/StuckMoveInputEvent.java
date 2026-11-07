@@ -2,8 +2,6 @@ package myau.events;
 
 import myau.event.events.Event;
 
-/**
- */
 public class StuckMoveInputEvent implements Event {
     private float moveForward;
     private float moveStrafe;

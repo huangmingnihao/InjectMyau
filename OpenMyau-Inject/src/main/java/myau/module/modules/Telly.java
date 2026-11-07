@@ -93,6 +93,10 @@ public class Telly extends Module {
     public void handleUpdate(UpdateEvent event) {
         if (!this.isEnabled()) return;
         if (event.getType() == EventType.PRE) {
+            // Raven/Flux cadence adapted to OpenMyau:
+            // 1) PreUpdate/autoplace still sees the stable rotation from the previous tick.
+            // 2) Then prepare this tick's movement phase and next rotation target.
+            // 3) Submit that scripted yaw to OpenMyau so move-fix and packet rotation use the same frame.
             onPreUpdate();
             if (running) {
                 advanceTellyCycle();
@@ -863,6 +867,7 @@ boolean isDropProtected() {
 }
 
 void onPostPlayerInput() {
+
     advanceTellyCycle();
     applyTellyMovementInput();
 }
@@ -949,6 +954,7 @@ void onRenderTick(float partialTicks) {
     if (!running) return;
     if (detectManualCameraTakeover()) return;
     applySmoothedRotation();
+
 }
 
 void onPostMotion() {
@@ -1006,6 +1012,7 @@ void disableEagleForActivation() {
 void restoreEagleAfterTelly(boolean restoreEagle, boolean restoreBridge) {
     try {
         if (Myau.moduleManager == null) return;
+
         if (restoreEagle) {
             LegitScaffold eagle = (LegitScaffold) Myau.moduleManager.getModule(LegitScaffold.class);
             if (eagle != null && !eagle.isEnabled()) {
@@ -1030,6 +1037,7 @@ void beginAutomation() {
     if (!isActivationYawAligned(player.getYaw())) return;
 
     disableSafeWalkForRun();
+
     baseYaw = Math.round((player.getYaw() - 45.0f) / 90.0f) * 90.0f + 45.0f;
     calculateTravelDirection(baseYaw);
     antiSwayLane = travelX != 0 ? player.getPosition().z : player.getPosition().x;
@@ -1075,6 +1083,7 @@ void beginAutomation() {
 }
 
 void stopAutomation(boolean turnOffButton) {
+
     boolean restoreEagleAfterStop = eagleWasDisabledByTelly || bridgeWasDisabledByTelly;
     boolean snapshotEagle = eagleWasDisabledByTelly;
     boolean snapshotBridge = bridgeWasDisabledByTelly;
@@ -1172,8 +1181,6 @@ void restoreSafeWalkState() {
     } catch (Exception ignored) {}
 }
 
-
-
 void printStatus(String message) {
     try {
         if (modules.getButton(scriptName, "Print")) {
@@ -1182,12 +1189,12 @@ void printStatus(String message) {
     } catch (Exception ignored) {}
 }
 
-
 void setRotationTarget(float targetYaw, float targetPitch, long duration) {
     Entity player = client.getPlayer();
     if (player == null) return;
 
     applySmoothedRotation();
+
     if (running) {
         rotationStartYaw = scriptedRotationYaw;
         rotationStartPitch = scriptedRotationPitch;
@@ -1345,7 +1352,6 @@ void initializeStraightBridgeLane(Entity player) {
 
     bridgeLaneBlock = travelX != 0 ? startZ : startX;
     bridgeStartProgress = startX * travelX + startZ * travelZ;
-
 
     // Placement lane uses the green-box anchor, but anti-sway keeps the player's
     // launch lane captured in beginAutomation(). Pulling to block-center makes
@@ -2753,6 +2759,7 @@ int getStraightForwardFacing(Entity player, float fallbackYaw) {
 
 int getConditionModeCheck(Entity player) {
     if (forcedModeCheck != 0) return forcedModeCheck;
+
     if (running) return 1;
     return getDetectedModeCheck(player);
 }
@@ -3559,6 +3566,7 @@ int faceFromName(String name) {
             Item item = itemStack.getItem();
             this.isBlock = item instanceof ItemBlock;
             this.type = this.isBlock ? ((ItemBlock) item).getBlock().getClass().getSimpleName() : item.getClass().getSimpleName();
+
             net.minecraft.util.ResourceLocation itemLoc =
                     net.minecraft.item.Item.itemRegistry.getNameForObject(item);
             this.name = itemLoc == null ? "" : itemLoc.getResourcePath();
@@ -3594,6 +3602,7 @@ int faceFromName(String name) {
         Block(net.minecraft.block.state.IBlockState state, BlockPos pos) {
             net.minecraft.block.Block block = state == null ? Blocks.air : state.getBlock();
             this.type = block.getClass().getSimpleName();
+
             net.minecraft.util.ResourceLocation blockLoc =
                     net.minecraft.block.Block.blockRegistry.getNameForObject(block);
             this.name = blockLoc == null ? "air" : blockLoc.getResourcePath();

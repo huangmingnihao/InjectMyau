@@ -16,6 +16,7 @@ public class GuiModule extends Module {
     private static final Minecraft mc = Minecraft.getMinecraft();
 
     public final ModeProperty style = new ModeProperty("style", 0, new String[]{"Modern", "Raven"});
+
     public final ColorProperty background = new ColorProperty("background", 0x101218,
             () -> this.style.getValue() == 0);
     public final PercentProperty backgroundOpacity = new PercentProperty("background-opacity", 55,
@@ -26,10 +27,12 @@ public class GuiModule extends Module {
             () -> this.style.getValue() == 0);
     public final PercentProperty imageOpacity = new PercentProperty("image-opacity", 65,
             () -> this.style.getValue() == 0);
+
     public final BooleanProperty textShadow = new BooleanProperty("text-shadow", true,
             () -> this.style.getValue() == 0);
     public final ColorProperty shadowColor = new ColorProperty("shadow-color", 0x000000,
             () -> this.style.getValue() == 0);
+
     public final ColorProperty textColor = new ColorProperty("text-color", 0xFFFFFF,
             () -> this.style.getValue() == 0);
     public final ColorProperty textDimColor = new ColorProperty("text-dim-color", 0x9AA0A6,

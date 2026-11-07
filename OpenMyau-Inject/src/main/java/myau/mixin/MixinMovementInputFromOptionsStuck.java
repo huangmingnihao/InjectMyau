@@ -11,8 +11,6 @@ import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
-/**
- */
 @Mixin(value = {MovementInputFromOptions.class})
 public abstract class MixinMovementInputFromOptionsStuck extends MovementInput {
     @Shadow

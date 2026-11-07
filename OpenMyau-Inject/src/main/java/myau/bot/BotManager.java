@@ -9,7 +9,9 @@ import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 
 public final class BotManager {
+
     private final Map<Object, Set<Integer>> flagged = new ConcurrentHashMap<Object, Set<Integer>>();
+
     private final Set<String> realNames = Collections.newSetFromMap(new ConcurrentHashMap<String, Boolean>());
     private final Set<UUID> realUuids = Collections.newSetFromMap(new ConcurrentHashMap<UUID, Boolean>());
 
@@ -51,6 +53,7 @@ public final class BotManager {
         }
     }
 
+
     public void confirmReal(String name, UUID uuid) {
         if (name != null && !name.isEmpty()) {
             this.realNames.add(name);
@@ -64,6 +67,7 @@ public final class BotManager {
         return name != null && this.realNames.contains(name)
                 || uuid != null && this.realUuids.contains(uuid);
     }
+
 
     public void clear() {
         this.flagged.clear();

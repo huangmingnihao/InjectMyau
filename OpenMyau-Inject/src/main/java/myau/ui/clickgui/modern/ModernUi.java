@@ -24,11 +24,11 @@ import java.util.ArrayList;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
-/**
- */
 public final class ModernUi {
+
     public static final int ACCENT = 0xFF3B6FF5;
     public static final int ACCENT_SOFT = 0x553B6FF5;
+
     public static int TEXT = 0xFFFFFFFF;
     public static int TEXT_DIM = 0xFF9AA0A6;
     public static int VALUE = 0xFF7FA8FF;
@@ -61,10 +61,12 @@ public final class ModernUi {
         return font(UI_FONT, size);
     }
 
+
     public static RavenFontRenderer mcFont(float size) {
         return shadow(new MinecraftFontAdapter(Minecraft.getMinecraft().fontRendererObj,
                 Math.max(0.5F, Math.min(2.0F, size / 8.0F))));
     }
+
 
     public static RavenFontRenderer font(String fileName, float size) {
         String key = fileName + "#" + size;
@@ -81,20 +83,22 @@ public final class ModernUi {
         return wrapped;
     }
 
-
     private static boolean textShadowEnabled = true;
     private static int textShadowColour = 0xFF000000;
+
 
     public static void setTextShadow(boolean enabled, int argb) {
         textShadowEnabled = enabled;
         textShadowColour = argb;
     }
 
+
     public static void setTextColours(int main, int dim, int value) {
         TEXT = 0xFF000000 | (main & 0xFFFFFF);
         TEXT_DIM = 0xFF000000 | (dim & 0xFFFFFF);
         VALUE = 0xFF000000 | (value & 0xFFFFFF);
     }
+
 
     private static RavenFontRenderer shadow(RavenFontRenderer inner) {
         return inner == null ? null : new ShadowRenderer(inner);
@@ -130,12 +134,10 @@ public final class ModernUi {
         return top + (height - font.getFontHeight()) / 2.0F + 1.0F;
     }
 
-    /**
-     */
+
     public static float visual(float drawRadius) {
         return drawRadius / 2.0F;
     }
-
 
     private static final ArrayList<Rect> GLASS_POOL = new ArrayList<Rect>();
     private static int glassUsed;
@@ -151,16 +153,19 @@ public final class ModernUi {
         return collecting;
     }
 
+
     public static void glassBegin() {
         glassUsed = 0;
         collecting = true;
         glassClip(Float.NEGATIVE_INFINITY, Float.POSITIVE_INFINITY);
     }
 
+
     public static void glassClip(float top, float bottom) {
         clipTop = top;
         clipBottom = bottom;
     }
+
 
     public static void glassAdd(float x, float y, float width, float height, float radius) {
         float top = Math.max(y, clipTop);
@@ -204,6 +209,7 @@ public final class ModernUi {
         }
     }
 
+
     public static int withOpacity(int rgb, int percent) {
         double alpha = Math.max(0.0, Math.min(1.0, percent / 100.0));
         return GuiRender.setAlpha(rgb & 0xFFFFFF, alpha);
@@ -218,6 +224,7 @@ public final class ModernUi {
         return folder;
     }
 
+
     private static File resolve(String path) {
         File file = new File(path);
         if (file.isAbsolute()) {
@@ -225,6 +232,7 @@ public final class ModernUi {
         }
         return new File(imageFolder(), path);
     }
+
 
     public static int texture(String path) {
         if (path == null || path.trim().isEmpty()) {
@@ -262,6 +270,7 @@ public final class ModernUi {
         IMAGE_SIZES.put(key, new int[]{image.getWidth(), image.getHeight()});
         return id;
     }
+
 
     public static int[] imageDimensions(String path) {
         if (path == null || path.trim().isEmpty()) {
@@ -312,6 +321,7 @@ public final class ModernUi {
     private static int logoTexture = -1;
     private static float logoAspect = 3.0F;
 
+
     public static int logoTexture() {
         if (logoTexture >= 0) {
             return logoTexture;
@@ -341,6 +351,7 @@ public final class ModernUi {
         return logoAspect;
     }
 
+
     private static BufferedImage cropTransparent(BufferedImage image) {
         int width = image.getWidth();
         int height = image.getHeight();
@@ -363,6 +374,7 @@ public final class ModernUi {
         }
         return image.getSubimage(minX, minY, maxX - minX + 1, maxY - minY + 1);
     }
+
 
     public static void drawTexture(int textureId, float x, float y, float x2, float y2, float alpha) {
         if (textureId <= 0 || x2 <= x || y2 <= y) {
@@ -389,8 +401,6 @@ public final class ModernUi {
     }
 
 
-    /**
-     */
     public static void drawRoundedTextureRegion(int textureId, float x, float y, float x2, float y2,
                                                 float radius, float alpha,
                                                 float u0, float v0, float u1, float v1) {
@@ -432,6 +442,7 @@ public final class ModernUi {
         GlStateManager.color(1.0F, 1.0F, 1.0F, 1.0F);
     }
 
+
     private static void texturedArc(double centreX, double centreY, double radius,
                                     int fromDegrees, int toDegrees, double signX, double signY,
                                     double dx, double dy, double dx2, double dy2,
@@ -446,6 +457,7 @@ public final class ModernUi {
             GL11.glVertex2d(vx, vy);
         }
     }
+
 
     public static String trim(RavenFontRenderer font, String text, float maxWidth) {
         if (text == null || text.isEmpty()) {
@@ -464,7 +476,6 @@ public final class ModernUi {
         }
         return builder + "...";
     }
-
 
     public static void drawCheck(float centreX, float centreY, int color) {
         GL11.glPushAttrib(GL11.GL_ALL_ATTRIB_BITS);
@@ -538,6 +549,7 @@ public final class ModernUi {
             GuiRender.drawRoundedRect(centreX - 1.0F, y - 1.0F, centreX + 1.0F, y + 1.0F, 1.0F, color);
         }
     }
+
 
     public static void drawFolderIcon(float centreX, float centreY, float size, int color) {
         float width = size;

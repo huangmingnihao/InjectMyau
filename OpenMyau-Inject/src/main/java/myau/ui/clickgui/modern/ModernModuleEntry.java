@@ -9,8 +9,6 @@ import myau.util.font.RavenFontRenderer;
 
 import java.util.ArrayList;
 
-/**
- */
 public class ModernModuleEntry {
     public static final float ROW_HEIGHT = 26.0F;
     private static final float ROW_RADIUS = 6.0F;
@@ -100,7 +98,6 @@ public class ModernModuleEntry {
         return false;
     }
 
-
     public void draw(float x, float y, float width, int mouseX, int mouseY) {
         float centreY = y + ROW_HEIGHT / 2.0F;
         boolean hovered = mouseX >= x && mouseX <= x + width && mouseY >= y && mouseY <= y + ROW_HEIGHT;
@@ -111,6 +108,7 @@ public class ModernModuleEntry {
         } else {
             background = hovered ? ModernUi.ROW_HOVER : ModernUi.ROW_BG;
         }
+
         boolean collect = ModernUi.glassCollecting();
         if (collect) {
             ModernUi.glassAdd(x, y, width, ROW_HEIGHT, ModernUi.visual(ROW_RADIUS));
@@ -152,7 +150,6 @@ public class ModernModuleEntry {
             settingY += setting.getHeight() + SETTINGS_GAP;
         }
     }
-
 
     public boolean onClick(float x, float y, float width, int mouseX, int mouseY, int button) {
         boolean onRow = mouseX >= x && mouseX <= x + width

@@ -208,6 +208,7 @@ public class BedDefender extends Module {
         if (!this.started && !this.begin()) {
             return null;
         }
+
         this.stepIndex = -1;
         for (int i = 0; i < this.steps.size(); i++) {
             if (this.isAir(this.targetOf(i))) {
@@ -233,6 +234,7 @@ public class BedDefender extends Module {
                 return result;
             }
         }
+
         return new float[]{this.serverYaw, this.serverPitch};
     }
 
@@ -359,6 +361,7 @@ public class BedDefender extends Module {
         if (!this.isAir(target)) {
             return null;
         }
+
         if (this.entityCheck.getValue() && this.blockedByEntity(target)) {
             return new float[]{yaw, pitch};
         }
@@ -375,12 +378,14 @@ public class BedDefender extends Module {
             this.swapTicks = this.delayAfterSwap.getValue();
         }
         if (this.swapTicks-- > 0) {
+
             return new float[]{yaw, pitch};
         }
         if (!this.sneaking && supportBlock instanceof BlockBed) {
             AccessorKeyBinding.setPressed(mc.gameSettings.keyBindSneak, true);
             this.sneaking = true;
             this.sneakRemaining = this.sneakHoldTicks.getValue();
+
             return new float[]{yaw, pitch};
         }
         if (this.aimTicks-- > 0
@@ -427,6 +432,7 @@ public class BedDefender extends Module {
         if (placed) {
             mc.thePlayer.swingItem();
         }
+
         return new float[]{yaw, pitch};
     }
 
@@ -563,6 +569,7 @@ public class BedDefender extends Module {
     private boolean isAir(BlockPos pos) {
         return state(pos) == Blocks_air();
     }
+
 
     private boolean blockedByEntity(BlockPos target) {
         AxisAlignedBB box = new AxisAlignedBB(

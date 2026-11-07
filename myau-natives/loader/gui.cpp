@@ -70,7 +70,9 @@ constexpr int CTRL_HEIGHT = 28;
 constexpr int CTRL_PAD = 13;
 constexpr int CTRL_DOT = 16;
 constexpr int CONTROLS_RIGHT = WINDOW_WIDTH - CLOSE_WIDTH - 6;
+
 constexpr int ADVANCED_TOP = 12;
+
 constexpr int CLOSE_INSET = ADVANCED_TOP + CTRL_HEIGHT / 2;
 
 constexpr int SIZE_LABEL = 11;
@@ -513,6 +515,7 @@ RECT consoleRect() {
     return {RIGHT_X, CONTENT_TOP, RIGHT_X + RIGHT_WIDTH, CONTENT_BOTTOM};
 }
 RECT advancedRect() {
+
     int advWidth = (int)g_szAdvanced.cx + CTRL_PAD * 2 + CTRL_DOT;
     return {CONTROLS_RIGHT - advWidth, ADVANCED_TOP, CONTROLS_RIGHT, ADVANCED_TOP + CTRL_HEIGHT};
 }
@@ -721,6 +724,7 @@ void paintShapes(HDC dc) {
 }
 
 void paintText(HDC dc) {
+
     drawCentered(dc, g_fontSmall, COLOUR_DIM, LEFT_X, LEFT_WIDTH, TAG_TOP, L"inject client");
 
     ButtonLayout layout = buttonLayout(dc);
@@ -846,7 +850,9 @@ void refreshTarget() {
         return;
     }
 }
+
 std::vector<BYTE> embeddedDll() {
+
     HRSRC handle = FindResourceA(nullptr, MAKEINTRESOURCEA(IDR_EMBEDDED_DLL),
                                  (LPCSTR)RT_RCDATA);
     if (!handle) {

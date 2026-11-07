@@ -101,15 +101,14 @@ public class ESP extends Module {
 
     @EventTarget
     public void onResize(ResizeEvent event) {
+
         if (this.framebuffer != null) {
             this.framebuffer.deleteFramebuffer();
             this.framebuffer = null;
         }
     }
 
-    /**
-     *
-     */
+
     @EventTarget(Priority.HIGHEST)
     public void onRender(Render3DEvent event) {
         if (!this.isEnabled()) {
@@ -127,6 +126,7 @@ public class ESP extends Module {
             return;
         }
         if (outline || twoD) {
+
             this.projectionContext = RenderUtil.captureProjectionContext(this.projectionContext,
                     new ScaledResolution(mc).getScaledHeight());
         }
@@ -181,10 +181,12 @@ public class ESP extends Module {
             if (twoD) {
                 this.renderTwoD(renderedEntities);
             }
+
             RenderUtil.applyProjectionContext(this.projectionContext);
             GlStateManager.popAttrib();
         }
     }
+
 
     private void renderOutline(List<EntityPlayer> renderedEntities, float partialTicks) {
         int width = Math.max(1, RenderUtil.getContextViewportWidth(this.projectionContext));
@@ -195,11 +197,13 @@ public class ESP extends Module {
             if (this.framebuffer != null) {
                 this.framebuffer.deleteFramebuffer();
             }
+
             this.framebuffer = new Framebuffer(width, height, false);
         }
         int previousFramebuffer = RenderUtil.getBoundFramebuffer();
         this.framebuffer.framebufferClear();
         this.framebuffer.bindFramebuffer(false);
+
         RenderUtil.applyProjectionContext(this.projectionContext);
         boolean shadow = mc.gameSettings.entityShadows;
         mc.gameSettings.entityShadows = false;
@@ -218,6 +222,7 @@ public class ESP extends Module {
         this.glow = true;
         this.outline = true;
         mc.gameSettings.entityShadows = shadow;
+
         RenderUtil.bindFramebuffer(previousFramebuffer);
         mc.entityRenderer.disableLightmap();
         mc.entityRenderer.setupOverlayRendering();
@@ -225,6 +230,7 @@ public class ESP extends Module {
         RenderUtil.drawFramebuffer(this.framebuffer);
         this.outlineRenderer.stop();
     }
+
 
     private void renderTwoD(List<EntityPlayer> renderedEntities) {
         mc.entityRenderer.setupOverlayRendering();

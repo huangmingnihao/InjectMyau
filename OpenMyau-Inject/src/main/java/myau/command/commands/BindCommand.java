@@ -103,6 +103,7 @@ public class BindCommand extends Command {
                 }
             } catch (NumberFormatException | StringIndexOutOfBoundsException e) {
             } catch (Throwable ignored) {
+
             }
         }
 

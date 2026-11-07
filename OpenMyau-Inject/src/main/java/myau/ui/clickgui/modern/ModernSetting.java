@@ -38,6 +38,7 @@ public class ModernSetting {
     private static final int KNOB_ON = 0xFFFFFFFF;
     private static final int KNOB_OFF = 0xFF9AA0A6;
 
+
     private static ModernSetting activeBind;
 
     private final Kind kind;
@@ -49,7 +50,9 @@ public class ModernSetting {
     private boolean dragging;
     private float dragLeft;
     private float dragWidth;
+
     private int dragBound = 1;
+
     private boolean colorExpanded;
     private int colorDrag = -1;
 
@@ -58,6 +61,7 @@ public class ModernSetting {
         this.property = property;
         this.module = module;
     }
+
 
     public static ModernSetting of(Property<?> property) {
         if (property instanceof BooleanProperty) {
@@ -82,6 +86,7 @@ public class ModernSetting {
         return null;
     }
 
+
     public static ModernSetting moduleKey(Module module) {
         return new ModernSetting(Kind.KEY, null, module);
     }
@@ -103,6 +108,7 @@ public class ModernSetting {
     public boolean isBinding() {
         return this.binding;
     }
+
 
     public void cancelBinding() {
         if (this.binding) {
@@ -133,6 +139,7 @@ public class ModernSetting {
         GuiRender.drawRoundedRect(x, y, x + width, y + height, SETTING_RADIUS, background);
         RavenFontRenderer font = ModernUi.regular(9.0F);
         float textY = ModernUi.centerTextY(font, y, height);
+
         boolean colorExpandedRow = this.kind == Kind.COLOR && this.colorExpanded;
         if (!colorExpandedRow) {
             font.drawString(ModernUi.trim(font, getName(), width * 0.55F), x + PADDING, textY,
@@ -192,6 +199,7 @@ public class ModernSetting {
         return this.kind == Kind.TEXT && this.property != null
                 && "background-image".equals(this.property.getName());
     }
+
 
     private void drawColorChannels(float x, float y, float width, int mouseX, int mouseY) {
         int rgb = ((ColorProperty) this.property).getValue() & 0xFFFFFF;
@@ -533,6 +541,7 @@ public class ModernSetting {
         }
         return appendUnit(base);
     }
+
 
     private String appendUnit(String base) {
         if (this.property == null) {

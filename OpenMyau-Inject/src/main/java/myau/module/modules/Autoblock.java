@@ -81,6 +81,7 @@ public class Autoblock extends SlinkyModule {
       this.resetState(false);
    }
 
+
    private static int ticks(float milliseconds) {
       return milliseconds <= 0.0F ? 0 : (int) Math.ceil((double) milliseconds / 50.0);
    }
@@ -104,6 +105,7 @@ public class Autoblock extends SlinkyModule {
    }
 
    private boolean shouldPredictiveBlock() {
+
       int trigger = Math.max(1, Math.min(10, Math.round(this.number("maximum-hurt-time") / 50.0F)));
       return mc.thePlayer.hurtTime == trigger;
    }
@@ -207,6 +209,7 @@ public class Autoblock extends SlinkyModule {
       }
    }
 
+
    @EventTarget
    public void onPacket(PacketEvent event) {
       if (event.getType() != EventType.SEND) {
@@ -247,6 +250,7 @@ public class Autoblock extends SlinkyModule {
    private void startBlocking(int currentTick) {
       if (this.holdingSword()) {
          int key = mc.gameSettings.keyBindUseItem.getKeyCode();
+
          KeyBindUtil.setKeyBindState(key, true);
          KeyBindUtil.pressKeyOnce(key);
          this.blocking = true;
@@ -285,6 +289,7 @@ public class Autoblock extends SlinkyModule {
       this.lagging = false;
       this.lagStartTick = -1;
       if (this.outboundLag != null) {
+
          this.outboundLag.getTimeout().forceTimeOut();
          this.outboundLag = null;
       }

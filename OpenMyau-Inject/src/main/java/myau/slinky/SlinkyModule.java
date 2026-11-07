@@ -23,6 +23,7 @@ public abstract class SlinkyModule extends Module {
       return ((Number) this.setting(key).getValue()).floatValue();
    }
 
+
    protected final float fraction(String key) {
       return this.number(key) / 100.0F;
    }
