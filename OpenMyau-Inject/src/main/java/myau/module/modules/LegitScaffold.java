@@ -1,5 +1,6 @@
 package myau.module.modules;
 
+import myau.Myau;
 import myau.event.EventTarget;
 import myau.event.types.EventType;
 import myau.event.types.Priority;
@@ -12,6 +13,7 @@ import myau.util.PlayerUtil;
 import myau.property.properties.BooleanProperty;
 import myau.property.properties.IntProperty;
 import net.minecraft.client.Minecraft;
+import net.minecraft.entity.Entity;
 import org.apache.commons.lang3.RandomUtils;
 import org.lwjgl.input.Keyboard;
 
@@ -26,6 +28,25 @@ public class LegitScaffold extends Module {
     public final BooleanProperty pitchCheck = new BooleanProperty("pitch-check", true);
     public final BooleanProperty blocksOnly = new BooleanProperty("blocks-only", true);
     public final BooleanProperty sneakOnly = new BooleanProperty("sneaking-only", false);
+    public final BooleanProperty visualSneak = new BooleanProperty("visual-sneak", false);
+
+    public static float getCameraEyeHeight(Entity view) {
+        float original = view.getEyeHeight();
+        if (Myau.moduleManager == null || mc.thePlayer == null || mc.theWorld == null
+                || view != mc.thePlayer || mc.gameSettings.thirdPersonView != 0
+                || mc.currentScreen != null || mc.thePlayer.isPlayerSleeping()
+                || mc.thePlayer.isRiding() || mc.thePlayer.movementInput == null) {
+            return original;
+        }
+        LegitScaffold scaffold = (LegitScaffold) Myau.moduleManager.modules.get(LegitScaffold.class);
+        if (scaffold == null || !scaffold.isEnabled() || !scaffold.visualSneak.getValue()) {
+            return original;
+        }
+        // Some launchers derive their camera pose from the physical sneak key.
+        // Use the final movement input, including automatic releases in sneaking-only mode.
+        // These are the vanilla 1.8.9 eye heights; replacing the height avoids a double drop.
+        return mc.thePlayer.movementInput.sneak ? 1.54F : 1.62F;
+    }
 
     private boolean canMoveSafely() {
         double[] offset = MoveUtil.predictMovement();

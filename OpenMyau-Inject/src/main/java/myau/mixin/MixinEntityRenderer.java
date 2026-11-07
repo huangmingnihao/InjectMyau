@@ -217,6 +217,17 @@ public abstract class MixinEntityRenderer {
     }
 
     @Redirect(
+            method = {"orientCamera"},
+            at = @At(
+                    value = "INVOKE",
+                    target = "Lnet/minecraft/entity/Entity;getEyeHeight()F"
+            )
+    )
+    private float cameraEyeHeight(Entity view) {
+        return LegitScaffold.getCameraEyeHeight(view);
+    }
+
+    @Redirect(
             method = {"setupFog"},
             at = @At(
                     value = "INVOKE",

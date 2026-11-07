@@ -38,6 +38,9 @@ dist-web/
 # Local agent notes
 /AGENTS.md
 
+# Local Lunar client dump
+/_lunar_dump/
+
 # Java
 *.class
 hs_err_pid*

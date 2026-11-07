@@ -11,6 +11,7 @@ import myau.events.RaytraceEvent;
 import myau.module.modules.AntiDebuff;
 import myau.module.modules.GhostHand;
 import myau.module.modules.KillAura;
+import myau.module.modules.LegitScaffold;
 import myau.module.modules.NoHurtCam;
 import myau.module.modules.Scaffold;
 import myau.module.modules.ViewClip;
@@ -174,6 +175,14 @@ public final class CameraCallbacks {
             Log.swallowed(swallowed);
         }
         return from.distanceTo(to);
+    }
+    public static float cameraEyeHeight(Entity view) {
+        try {
+            return LegitScaffold.getCameraEyeHeight(view);
+        } catch (Throwable swallowed) {
+            Log.swallowed(swallowed);
+            return view.getEyeHeight();
+        }
     }
     public static Material fogMaterial(Block block) {
         try {

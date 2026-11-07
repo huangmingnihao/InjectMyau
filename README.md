@@ -86,6 +86,14 @@ Injecting twice into the same game does nothing the second time — the classes 
 will not be read again. To pick up a new build, close Minecraft, start it again, and inject the new
 loader.
 
+### Legit Scaffold
+
+Enable `visual-sneak` in **LegitScaffold** to make the first-person camera follow its
+automatic crouching and standing. It uses the normal Minecraft 1.8.9 eye heights,
+including on clients whose camera otherwise follows the physical sneak key.
+The option is off by default and only changes the camera; movement and sneak timing
+keep their existing behavior. Third-person and sleeping/riding cameras are unaffected.
+
 ### Radar
 
 Enable **Radar** in the render category. `range` controls the horizontal distance in blocks
