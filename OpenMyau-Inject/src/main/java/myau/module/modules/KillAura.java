@@ -6,6 +6,7 @@ import java.util.concurrent.ThreadLocalRandom;
 import com.google.common.base.CaseFormat;
 
 import myau.Myau;
+import myau.util.MeowtilsCompat;
 import myau.access.AccessorMinecraft;
 import myau.access.AccessorPlayerControllerMP;
 import myau.enums.BlinkModules;
@@ -220,6 +221,7 @@ public class KillAura extends Module {
                     } else {
                         AttackEvent event = new AttackEvent(this.target.getEntity());
                         EventManager.call(event);
+                        MeowtilsCompat.onAttack(mc.thePlayer, this.target.getEntity());
                         AccessorPlayerControllerMP.callSyncCurrentPlayItem(mc.playerController);
                         PacketUtil.sendPacket(new C02PacketUseEntity(this.target.getEntity(), Action.ATTACK));
                         if (mc.playerController.getCurrentGameType() != GameType.SPECTATOR) {
