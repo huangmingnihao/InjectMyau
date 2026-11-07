@@ -19,6 +19,7 @@ import net.minecraft.block.Block;
 import net.minecraft.block.material.Material;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.entity.EntityPlayerSP;
+import net.minecraft.client.renderer.GlStateManager;
 import net.minecraft.entity.Entity;
 import net.minecraft.entity.EntityLivingBase;
 import net.minecraft.item.ItemStack;
@@ -176,13 +177,14 @@ public final class CameraCallbacks {
         }
         return from.distanceTo(to);
     }
-    public static float cameraEyeHeight(Entity view) {
+    public static void cameraTranslate(float x, float y, float z) {
         try {
-            return LegitScaffold.getCameraEyeHeight(view);
+            y = LegitScaffold.getCameraTranslationY(
+                    Minecraft.getMinecraft().getRenderViewEntity(), x, y, z);
         } catch (Throwable swallowed) {
             Log.swallowed(swallowed);
-            return view.getEyeHeight();
         }
+        GlStateManager.translate(x, y, z);
     }
     public static Material fogMaterial(Block block) {
         try {

@@ -367,8 +367,8 @@ public final class Hooks {
                 .calls("onGetMouseOverReturn", "()V").add();
         HookRegistry.hook(ENTITY_RENDERER, "orientCamera", "(F)V").in(camera)
                 .at(Position.REPLACE_INVOKE)
-                .invoking(ENTITY, "getEyeHeight", "()F")
-                .calls("cameraEyeHeight", "(Lnet/minecraft/entity/Entity;)F").add();
+                .invoking("net.minecraft.client.renderer.GlStateManager", "translate", "(FFF)V")
+                .calls("cameraTranslate", "(FFF)V").add();
         HookRegistry.hook(ENTITY_RENDERER, "orientCamera", "(F)V").in(camera)
                 .at(Position.REPLACE_INVOKE)
                 .invoking("net.minecraft.util.Vec3", "distanceTo",
