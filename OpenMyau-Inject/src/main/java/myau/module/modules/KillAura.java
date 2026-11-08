@@ -29,6 +29,7 @@ import myau.events.UpdateEvent;
 import myau.management.RotationState;
 import myau.module.Module;
 import myau.property.properties.BooleanProperty;
+import myau.property.properties.ColorProperty;
 import myau.property.properties.FloatProperty;
 import myau.property.properties.IntProperty;
 import myau.property.properties.ModeProperty;
@@ -39,6 +40,7 @@ import myau.util.MoveUtil;
 import myau.util.PacketUtil;
 import myau.util.PlayerUtil;
 import myau.util.RandomUtil;
+import myau.util.RenderUtil;
 import myau.util.RotationUtil;
 import myau.util.TeamUtil;
 import myau.util.TimerUtil;
@@ -135,6 +137,12 @@ public class KillAura extends Module {
     public final BooleanProperty golems;
     public final BooleanProperty silverfish;
     public final BooleanProperty teams;
+
+    public final BooleanProperty targetBox = new BooleanProperty("Target Box", true);
+    public final ColorProperty targetBoxColor = new ColorProperty("Target Box Color", 0xFFFFFF, this.targetBox::getValue);
+    public final PercentProperty targetBoxOpacity = new PercentProperty("Target Box Opacity", 20, this.targetBox::getValue);
+    public final BooleanProperty targetBoxHurt = new BooleanProperty("Target Box Hurt", false, this.targetBox::getValue);
+    public final BooleanProperty targetBoxThroughWalls = new BooleanProperty("Target Box Through Walls", true, this.targetBox::getValue);
 
     private final TimerUtil timer = new TimerUtil();
     private AttackData target = null;
@@ -832,6 +840,20 @@ public class KillAura extends Module {
 
     @EventTarget
     public void onRender(Render3DEvent event) {
+        if (!this.isEnabled() || !this.targetBox.getValue() || this.targetBoxOpacity.getValue() == 0
+                || mc.thePlayer == null || mc.theWorld == null) {
+            return;
+        }
+        EntityLivingBase entity = this.getTarget();
+        if (entity == null || !entity.isEntityAlive() || !TeamUtil.isEntityLoaded(entity)
+                || !this.isAttackAllowed()) {
+            return;
+        }
+        int color = this.targetBoxHurt.getValue() && entity.hurtTime > 0
+                ? 0xFF5555 : this.targetBoxColor.getValue();
+        int alpha = Math.round(this.targetBoxOpacity.getValue() * 255.0F / 100.0F);
+        RenderUtil.drawEntityFilledBox(entity, event.getPartialTicks(), color, alpha,
+                this.targetBoxThroughWalls.getValue());
     }
     @EventTarget
     public void onLeftClick(LeftClickMouseEvent event) {

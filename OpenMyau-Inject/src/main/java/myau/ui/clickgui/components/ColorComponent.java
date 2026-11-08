@@ -134,7 +134,8 @@ public class ColorComponent extends Component {
         }
         float left = this.module.category.getX() + 4;
         float right = left + this.module.category.getWidth() - 8;
-        float top = this.module.category.getY() + this.offset + 3;
+        // Input coordinates include the panel's scroll translation, unlike render coordinates.
+        float top = this.module.category.getModuleY() + this.offset + 3;
         float bottom = top + 12;
 
         if (button == 0 && mouseX >= left && mouseX <= right && mouseY >= top && mouseY <= bottom) {
