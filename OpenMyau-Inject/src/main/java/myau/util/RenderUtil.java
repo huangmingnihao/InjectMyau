@@ -384,6 +384,39 @@ public class RenderUtil {
     public static void drawBlockBox(BlockPos blockPos, double height, int red, int green, int blue) {
         RenderUtil.drawFilledBox(new AxisAlignedBB(blockPos.getX(), blockPos.getY(), blockPos.getZ(), (double) blockPos.getX() + 1.0, (double) blockPos.getY() + height, (double) blockPos.getZ() + 1.0).offset(-AccessorRenderManager.getRenderPosX(mc.getRenderManager()), -AccessorRenderManager.getRenderPosY(mc.getRenderManager()), -AccessorRenderManager.getRenderPosZ(mc.getRenderManager())), red, green, blue);
     }
+    public static void drawBlockBoxAlpha(BlockPos blockPos, double height, int red, int green, int blue, int alpha) {
+        RenderUtil.drawFilledBoxAlpha(new AxisAlignedBB(blockPos.getX(), blockPos.getY(), blockPos.getZ(), (double) blockPos.getX() + 1.0, (double) blockPos.getY() + height, (double) blockPos.getZ() + 1.0).offset(-AccessorRenderManager.getRenderPosX(mc.getRenderManager()), -AccessorRenderManager.getRenderPosY(mc.getRenderManager()), -AccessorRenderManager.getRenderPosZ(mc.getRenderManager())), red, green, blue, alpha);
+    }
+    public static void drawFilledBoxAlpha(AxisAlignedBB axisAlignedBB, int red, int green, int blue, int alpha) {
+        Tessellator tessellator = Tessellator.getInstance();
+        WorldRenderer worldRenderer = tessellator.getWorldRenderer();
+        worldRenderer.begin(7, DefaultVertexFormats.POSITION_COLOR);
+        worldRenderer.pos(axisAlignedBB.minX, axisAlignedBB.minY, axisAlignedBB.minZ).color(red, green, blue, alpha).endVertex();
+        worldRenderer.pos(axisAlignedBB.minX, axisAlignedBB.minY, axisAlignedBB.maxZ).color(red, green, blue, alpha).endVertex();
+        worldRenderer.pos(axisAlignedBB.maxX, axisAlignedBB.minY, axisAlignedBB.maxZ).color(red, green, blue, alpha).endVertex();
+        worldRenderer.pos(axisAlignedBB.maxX, axisAlignedBB.minY, axisAlignedBB.minZ).color(red, green, blue, alpha).endVertex();
+        worldRenderer.pos(axisAlignedBB.minX, axisAlignedBB.maxY, axisAlignedBB.minZ).color(red, green, blue, alpha).endVertex();
+        worldRenderer.pos(axisAlignedBB.minX, axisAlignedBB.maxY, axisAlignedBB.maxZ).color(red, green, blue, alpha).endVertex();
+        worldRenderer.pos(axisAlignedBB.maxX, axisAlignedBB.maxY, axisAlignedBB.maxZ).color(red, green, blue, alpha).endVertex();
+        worldRenderer.pos(axisAlignedBB.maxX, axisAlignedBB.maxY, axisAlignedBB.minZ).color(red, green, blue, alpha).endVertex();
+        worldRenderer.pos(axisAlignedBB.minX, axisAlignedBB.minY, axisAlignedBB.minZ).color(red, green, blue, alpha).endVertex();
+        worldRenderer.pos(axisAlignedBB.minX, axisAlignedBB.maxY, axisAlignedBB.minZ).color(red, green, blue, alpha).endVertex();
+        worldRenderer.pos(axisAlignedBB.maxX, axisAlignedBB.maxY, axisAlignedBB.minZ).color(red, green, blue, alpha).endVertex();
+        worldRenderer.pos(axisAlignedBB.maxX, axisAlignedBB.minY, axisAlignedBB.minZ).color(red, green, blue, alpha).endVertex();
+        worldRenderer.pos(axisAlignedBB.minX, axisAlignedBB.minY, axisAlignedBB.maxZ).color(red, green, blue, alpha).endVertex();
+        worldRenderer.pos(axisAlignedBB.minX, axisAlignedBB.maxY, axisAlignedBB.maxZ).color(red, green, blue, alpha).endVertex();
+        worldRenderer.pos(axisAlignedBB.maxX, axisAlignedBB.maxY, axisAlignedBB.maxZ).color(red, green, blue, alpha).endVertex();
+        worldRenderer.pos(axisAlignedBB.maxX, axisAlignedBB.minY, axisAlignedBB.maxZ).color(red, green, blue, alpha).endVertex();
+        worldRenderer.pos(axisAlignedBB.minX, axisAlignedBB.minY, axisAlignedBB.minZ).color(red, green, blue, alpha).endVertex();
+        worldRenderer.pos(axisAlignedBB.minX, axisAlignedBB.maxY, axisAlignedBB.minZ).color(red, green, blue, alpha).endVertex();
+        worldRenderer.pos(axisAlignedBB.minX, axisAlignedBB.maxY, axisAlignedBB.maxZ).color(red, green, blue, alpha).endVertex();
+        worldRenderer.pos(axisAlignedBB.minX, axisAlignedBB.minY, axisAlignedBB.maxZ).color(red, green, blue, alpha).endVertex();
+        worldRenderer.pos(axisAlignedBB.maxX, axisAlignedBB.minY, axisAlignedBB.minZ).color(red, green, blue, alpha).endVertex();
+        worldRenderer.pos(axisAlignedBB.maxX, axisAlignedBB.maxY, axisAlignedBB.minZ).color(red, green, blue, alpha).endVertex();
+        worldRenderer.pos(axisAlignedBB.maxX, axisAlignedBB.maxY, axisAlignedBB.maxZ).color(red, green, blue, alpha).endVertex();
+        worldRenderer.pos(axisAlignedBB.maxX, axisAlignedBB.minY, axisAlignedBB.maxZ).color(red, green, blue, alpha).endVertex();
+        tessellator.draw();
+    }
     public static void drawBlockBoundingBox(BlockPos blockPos, double height, int red, int green, int blue, int alpha, float lineWidth) {
         RenderUtil.drawBoundingBox(new AxisAlignedBB(blockPos.getX(), blockPos.getY(), blockPos.getZ(), (double) blockPos.getX() + 1.0, (double) blockPos.getY() + height, (double) blockPos.getZ() + 1.0).offset(-AccessorRenderManager.getRenderPosX(mc.getRenderManager()), -AccessorRenderManager.getRenderPosY(mc.getRenderManager()), -AccessorRenderManager.getRenderPosZ(mc.getRenderManager())), red, green, blue, alpha, lineWidth);
     }
@@ -471,6 +504,7 @@ public class RenderUtil {
         context.viewportWidth = context.viewport.get(2);
         context.viewportHeight = context.viewport.get(3);
 
+
         context.screenScale = (context.viewportHeight > 0 && scaledHeight > 0)
                 ? (double) context.viewportHeight / (double) scaledHeight
                 : 1.0;
@@ -484,6 +518,9 @@ public class RenderUtil {
     public static int getContextViewportHeight(ProjectionContext context) {
         return context == null ? 0 : context.viewportHeight;
     }
+
+
+
 
 
     public static void applyProjectionContext(ProjectionContext context) {

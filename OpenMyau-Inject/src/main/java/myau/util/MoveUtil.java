@@ -168,6 +168,41 @@ public class MoveUtil {
         return new double[]{0.0, 0.0};
     }
 
+    public static float[] getFixedInputs(float movementYaw, float targetYaw) {
+        float angle = MathHelper.wrapAngleTo180_float(movementYaw - targetYaw + 22.5f);
+        float forward = 0.0F;
+        float strafe = 0.0F;
+        switch ((int) (angle + 180.0f) / 45 % 8) {
+            case 0: forward = -1.0f; break;
+            case 1: forward = -1.0f; strafe = 1.0f; break;
+            case 2: strafe = 1.0f; break;
+            case 3: forward = 1.0f; strafe = 1.0f; break;
+            case 4: forward = 1.0f; break;
+            case 5: forward = 1.0f; strafe = -1.0f; break;
+            case 6: strafe = -1.0f; break;
+            case 7: forward = -1.0f; strafe = -1.0f; break;
+        }
+        return new float[]{forward, strafe};
+    }
+
+    public static double[] predictMovement(float yaw, float forward, float strafe, float acceleration) {
+        float strafeInput = strafe * 0.98f;
+        float forwardInput = forward * 0.98f;
+        float inputMagnitude = strafeInput * strafeInput + forwardInput * forwardInput;
+        if (inputMagnitude >= 1.0E-4f) {
+            inputMagnitude = MathHelper.sqrt_float(inputMagnitude);
+            if (inputMagnitude < 1.0f) inputMagnitude = 1.0f;
+            inputMagnitude = acceleration / inputMagnitude;
+            float sinYaw = MathHelper.sin(yaw * (float) Math.PI / 180.0f);
+            float cosYaw = MathHelper.cos(yaw * (float) Math.PI / 180.0f);
+            strafeInput *= inputMagnitude;
+            forwardInput *= inputMagnitude;
+            return new double[]{strafeInput * cosYaw - forwardInput * sinYaw,
+                    forwardInput * cosYaw + strafeInput * sinYaw};
+        }
+        return new double[]{0.0, 0.0};
+    }
+
     public static void fixStrafe(float targetYaw) {
         float angle = MathHelper.wrapAngleTo180_float(MoveUtil.adjustYaw(MoveUtil.mc.thePlayer.rotationYaw, MoveUtil.getForwardValue(), MoveUtil.getLeftValue()) - targetYaw + 22.5f);
         switch ((int) (angle + 180.0f) / 45 % 8) {

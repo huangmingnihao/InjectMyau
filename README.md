@@ -86,6 +86,24 @@ Injecting twice into the same game does nothing the second time — the classes 
 will not be read again. To pick up a new build, close Minecraft, start it again, and inject the new
 loader.
 
+### Legit Scaffold
+
+Enable `visual-sneak` in **LegitScaffold** to make the first-person camera follow its
+automatic crouching and standing. It uses the normal Minecraft 1.8.9 eye heights,
+including on clients whose camera otherwise follows the physical sneak key.
+The option is off by default and only changes the camera; movement and sneak timing
+keep their existing behavior. Third-person and sleeping/riding cameras are unaffected.
+In `sneaking-only` mode, holding the sneak key enables the scaffold logic; the camera
+uses the module's per-tick crouch/stand decision even if a launcher restores the held
+key state later. Camera state is cleared when changing worlds or disabling the module.
+
+### Meowtils compatibility
+
+When Meowtils is installed, KillAura also notifies its attack event listeners so
+features such as DamageTags can observe attacks that bypass the vanilla controller.
+This does not add another attack packet or change the attack/block sequence.
+Meowtils remains optional; missing or incompatible versions do not interrupt attacks.
+
 ### Radar
 
 Enable **Radar** in the render category. `range` controls the horizontal distance in blocks

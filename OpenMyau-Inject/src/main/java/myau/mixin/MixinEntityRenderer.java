@@ -13,6 +13,7 @@ import net.minecraft.block.material.Material;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.entity.EntityPlayerSP;
 import net.minecraft.client.renderer.EntityRenderer;
+import net.minecraft.client.renderer.GlStateManager;
 import net.minecraft.entity.Entity;
 import net.minecraft.entity.EntityLivingBase;
 import net.minecraft.item.ItemStack;
@@ -214,6 +215,18 @@ public abstract class MixinEntityRenderer {
         } else {
             return Myau.moduleManager.modules.get(ViewClip.class).isEnabled() ? (double) this.thirdPersonDistance : vec31.distanceTo(vec32);
         }
+    }
+
+    @Redirect(
+            method = {"orientCamera"},
+            at = @At(
+                    value = "INVOKE",
+                    target = "Lnet/minecraft/client/renderer/GlStateManager;translate(FFF)V"
+            )
+    )
+    private void cameraTranslate(float x, float y, float z) {
+        GlStateManager.translate(x,
+                LegitScaffold.getCameraTranslationY(this.mc.getRenderViewEntity(), x, y, z), z);
     }
 
     @Redirect(

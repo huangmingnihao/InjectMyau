@@ -11,6 +11,27 @@ import net.minecraft.util.Vec3;
 public class RotationUtil {
     private static final Minecraft mc = Minecraft.getMinecraft();
 
+    public static float[] getRotations(BlockPos blockPos) {
+        return getRotations(blockPos.getX() + 0.5, blockPos.getY() + 0.5, blockPos.getZ() + 0.5,
+                mc.thePlayer.posX, mc.thePlayer.posY + (double) mc.thePlayer.getEyeHeight(), mc.thePlayer.posZ);
+    }
+
+    public static float[] getRotations(double posX, double posY, double posZ) {
+        return getRotations(posX, posY, posZ,
+                mc.thePlayer.posX, mc.thePlayer.posY + (double) mc.thePlayer.getEyeHeight(), mc.thePlayer.posZ);
+    }
+
+    public static float[] getRotations(double targetX, double targetY, double targetZ,
+                                       double startX, double startY, double startZ) {
+        double x = targetX - startX;
+        double y = targetY - startY;
+        double z = targetZ - startZ;
+        double horizontalDistance = MathHelper.sqrt_double(x * x + z * z);
+        float yaw = (float) (Math.atan2(z, x) * 180.0 / Math.PI) - 90.0F;
+        float pitch = (float) (-(Math.atan2(y, horizontalDistance) * 180.0 / Math.PI));
+        return new float[]{yaw, pitch};
+    }
+
     public static float wrapAngleDiff(float angle, float target) {
         return target + MathHelper.wrapAngleTo180_float(angle - target);
     }
@@ -140,6 +161,10 @@ public class RotationUtil {
     public static float getYawBetween(double x1, double z1, double x2, double z2) {
         return MathHelper.wrapAngleTo180_float((float) (Math.atan2(z2 - z1, x2 - x1) * 180.0 / Math.PI) - 90.0f - RotationUtil.mc.thePlayer.rotationYaw);
     }
+
+
+
+
 
 
     private static Vec3 lookVector(float yaw, float pitch) {

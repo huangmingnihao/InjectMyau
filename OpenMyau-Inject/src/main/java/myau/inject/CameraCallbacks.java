@@ -11,6 +11,7 @@ import myau.events.RaytraceEvent;
 import myau.module.modules.AntiDebuff;
 import myau.module.modules.GhostHand;
 import myau.module.modules.KillAura;
+import myau.module.modules.LegitScaffold;
 import myau.module.modules.NoHurtCam;
 import myau.module.modules.Scaffold;
 import myau.module.modules.ViewClip;
@@ -18,6 +19,7 @@ import net.minecraft.block.Block;
 import net.minecraft.block.material.Material;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.entity.EntityPlayerSP;
+import net.minecraft.client.renderer.GlStateManager;
 import net.minecraft.entity.Entity;
 import net.minecraft.entity.EntityLivingBase;
 import net.minecraft.item.ItemStack;
@@ -174,6 +176,15 @@ public final class CameraCallbacks {
             Log.swallowed(swallowed);
         }
         return from.distanceTo(to);
+    }
+    public static void cameraTranslate(float x, float y, float z) {
+        try {
+            y = LegitScaffold.getCameraTranslationY(
+                    Minecraft.getMinecraft().getRenderViewEntity(), x, y, z);
+        } catch (Throwable swallowed) {
+            Log.swallowed(swallowed);
+        }
+        GlStateManager.translate(x, y, z);
     }
     public static Material fogMaterial(Block block) {
         try {

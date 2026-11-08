@@ -4,6 +4,7 @@ import myau.event.EventTarget;
 import myau.event.types.Priority;
 import myau.events.MoveInputEvent;
 import myau.module.modules.BridgeAssist;
+import myau.module.modules.LeaderScaffold;
 import myau.module.modules.Scaffold;
 import myau.util.MoveUtil;
 import net.minecraft.client.Minecraft;
@@ -22,11 +23,13 @@ public class MovementFix {
             return;
         }
 
+
+
         if (BridgeAssist.isHandlingMovementFix()) {
             return;
         }
 
-        if (Scaffold.isHandlingMovementFix()) {
+        if (Scaffold.isHandlingMovementFix() || LeaderScaffold.isHandlingMovementFix()) {
             return;
         }
         if (!MoveUtil.isForwardPressed()) {

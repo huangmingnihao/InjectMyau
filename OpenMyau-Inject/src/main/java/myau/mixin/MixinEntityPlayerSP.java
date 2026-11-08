@@ -10,7 +10,9 @@ import myau.events.PlayerUpdateEvent;
 import myau.events.UpdateEvent;
 import myau.management.RotationState;
 import myau.module.modules.AntiDebuff;
+import myau.module.modules.LeaderStuck;
 import myau.module.modules.NoSlow;
+import myau.util.ISkipTickPlayer;
 import net.minecraft.client.entity.EntityPlayerSP;
 import net.minecraft.potion.Potion;
 import net.minecraft.util.BlockPos;
@@ -27,7 +29,12 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
 @SideOnly(Side.CLIENT)
 @Mixin(value = {EntityPlayerSP.class}, priority = 9999)
-public abstract class MixinEntityPlayerSP extends MixinEntityPlayer {
+public abstract class MixinEntityPlayerSP extends MixinEntityPlayer implements ISkipTickPlayer {
+    @Override
+    public void leader$onSkipUpdate() {
+        EventManager.call(new LivingUpdateEvent());
+    }
+
     @Unique
     private float overrideYaw = Float.NaN;
     @Unique
@@ -75,8 +82,10 @@ public abstract class MixinEntityPlayerSP extends MixinEntityPlayer {
     private void postUpdate(CallbackInfo callbackInfo) {
         if (this.worldObj.isBlockLoaded(new BlockPos(this.posX, 0.0, this.posZ))) {
             if (!Float.isNaN(this.pendingYaw) && !Float.isNaN(this.pendingPitch)) {
-                this.lastReportedYaw = this.rotationYaw;
-                this.lastReportedPitch = this.rotationPitch;
+                if (!LeaderStuck.isExternalPacketFreezeActive() && !LeaderStuck.isFrozen()) {
+                    this.lastReportedYaw = this.rotationYaw;
+                    this.lastReportedPitch = this.rotationPitch;
+                }
                 this.rotationYaw = this.rotationYaw + MathHelper.wrapAngleTo180_float(this.pendingYaw - this.rotationYaw);
                 this.rotationPitch = this.pendingPitch;
                 this.prevRotationYaw = this.rotationYaw;

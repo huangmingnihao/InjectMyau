@@ -21,6 +21,7 @@ import myau.property.properties.PercentProperty;
 import myau.util.ChatUtil;
 import myau.util.KeyBindUtil;
 import myau.util.MoveUtil;
+import myau.util.PacketUtil;
 import myau.util.RotationUtil;
 import net.minecraft.client.Minecraft;
 import net.minecraft.entity.Entity;
@@ -35,7 +36,8 @@ import net.minecraft.util.MovingObjectPosition;
 public class Velocity extends Module {
     private static final Minecraft mc = Minecraft.getMinecraft();
     private static final int MODE_JUMP = 1;
-    private static final int MODE_WATCHDOG = 5;
+    private static final int MODE_PREDICTION = 3;
+    private static final int MODE_WATCHDOG = 6;
     private static final long MW_GROUND_TIMEOUT_MS = 1000L;
     private static final double FALL_IGNORE_DISTANCE = 3.0;
     private static final float JUMP_FOV = 330.0F;
@@ -65,15 +67,22 @@ public class Velocity extends Module {
     private long mwWorldChangeTime = 0L;
     private long mwDelayStart = 0L;
 
-    public final ModeProperty mode = new ModeProperty("mode", 0, new String[]{"VANILLA", "JUMP", "DELAY", "REVERSE", "LEGIT_TEST",
+    public final ModeProperty mode = new ModeProperty("mode", 0, new String[]{"VANILLA", "JUMP", "DELAY", "PREDICTION", "REVERSE", "LEGIT_TEST",
             "WATCHDOG"});
-    public final IntProperty delayTicks = new IntProperty("delay-ticks", 3, 1, 20, () -> this.mode.getValue() == 2);
+    public final IntProperty delayTicks = new IntProperty("delay-ticks", 3, 1, 20, this::isDelayMode);
+    public final BooleanProperty reduce = new BooleanProperty("reduce", false,
+            () -> this.mode.getValue() == MODE_PREDICTION);
+    public final ModeProperty reduceMode = new ModeProperty("reduce-mode", 0,
+            new String[]{"ReleaseWhenCanAttack"},
+            () -> this.mode.getValue() == MODE_PREDICTION && this.reduce.getValue());
+    public final BooleanProperty extraAttack = new BooleanProperty("extra-attack", false,
+            () -> this.mode.getValue() == MODE_PREDICTION && this.reduce.getValue());
     public final BooleanProperty lookingAtPlayer = new BooleanProperty("looking-at-player", false,
-            () -> this.mode.getValue() == 2);
+            this::isDelayMode);
     public final BooleanProperty requireLeftMouse = new BooleanProperty("require-left-mouse", false,
-            () -> this.mode.getValue() == 2);
+            this::isDelayMode);
     public final BooleanProperty onlyWeapon = new BooleanProperty("only-weapon", false,
-            () -> this.mode.getValue() == 2);
+            this::isDelayMode);
     public final IntProperty mwDelayTicks = new IntProperty("mw-delay-ticks", 1, 0, 100,
             () -> this.mode.getValue() == MODE_WATCHDOG);
     public final IntProperty mwWorldTimeout = new IntProperty("mw-world-timeout", 5000, 0, 10000,
@@ -92,17 +101,17 @@ public class Velocity extends Module {
             () -> this.mode.getValue() == MODE_WATCHDOG);
     public final BooleanProperty mwUntilGround = new BooleanProperty("mw-until-ground", false,
             () -> this.mode.getValue() == MODE_WATCHDOG);
-    public final PercentProperty delayChance = new PercentProperty("delay-chance", 100, () -> this.mode.getValue() == 2);
+    public final PercentProperty delayChance = new PercentProperty("delay-chance", 100, this::isDelayMode);
     public final PercentProperty chance =
-            new PercentProperty("chance", 100, () -> this.mode.getValue() != MODE_JUMP);
+            new PercentProperty("chance", 100, () -> !this.isJumpMode());
     public final PercentProperty horizontal =
-            new PercentProperty("horizontal", 0, () -> this.mode.getValue() != MODE_JUMP);
+            new PercentProperty("horizontal", 0, () -> !this.isJumpMode());
     public final PercentProperty vertical =
-            new PercentProperty("vertical", 100, () -> this.mode.getValue() != MODE_JUMP);
+            new PercentProperty("vertical", 100, () -> !this.isJumpMode());
     public final PercentProperty explosionHorizontal =
-            new PercentProperty("explosions-horizontal", 100, () -> this.mode.getValue() != MODE_JUMP);
+            new PercentProperty("explosions-horizontal", 100, () -> !this.isJumpMode());
     public final PercentProperty explosionVertical =
-            new PercentProperty("explosions-vertical", 100, () -> this.mode.getValue() != MODE_JUMP);
+            new PercentProperty("explosions-vertical", 100, () -> !this.isJumpMode());
     public final PercentProperty jumpChance =
             new PercentProperty("jump-chance", 80, this::jumpResetActive);
     public final BooleanProperty requireMouseDown = new BooleanProperty("require-mouse-down", false,
@@ -118,9 +127,11 @@ public class Velocity extends Module {
         return mc.thePlayer.isInWater() || mc.thePlayer.isInLava() || AccessorEntity.getIsInWeb(mc.thePlayer);
     }
 
+
     private boolean canDelay() {
         return mc.thePlayer.onGround;
     }
+
 
     private boolean canTriggerDelay() {
         if (this.lookingAtPlayer.getValue() && !isAimingAtPlayer()) {
@@ -139,6 +150,22 @@ public class Velocity extends Module {
         super("Velocity", false);
     }
 
+    private boolean isJumpMode() {
+        return this.mode.getValue() == MODE_JUMP || this.mode.getValue() == MODE_PREDICTION;
+    }
+
+    private boolean isDelayMode() {
+        return this.mode.getValue() == 2 || this.mode.getValue() == MODE_PREDICTION;
+    }
+
+    private boolean canOwnDelay() {
+        return Myau.delayManager != null
+                && (Myau.delayManager.getDelayModule() == DelayModules.VELOCITY
+                || Myau.delayManager.getDelayModule() == DelayModules.NONE
+                && Myau.delayManager.delayedPacket.isEmpty());
+    }
+
+
     public boolean isAttackReduceActive() {
         return this.isEnabled() && this.mode.getValue() == MODE_WATCHDOG
                 && this.mwAttackReduce.getValue() && this.mwAttackCount > 0;
@@ -152,7 +179,7 @@ public class Velocity extends Module {
     }
 
     private boolean jumpResetActive() {
-        return this.mode.getValue() == MODE_JUMP
+        return this.isJumpMode()
                 || this.mode.getValue() == MODE_WATCHDOG && this.mwJumpReset.getValue();
     }
 
@@ -197,6 +224,7 @@ public class Velocity extends Module {
             mc.thePlayer.movementInput.moveStrafe = 0.0F;
         }
     }
+
 
     @EventTarget
     public void onUpdateMw(UpdateEvent event) {
@@ -289,6 +317,7 @@ public class Velocity extends Module {
             myau.util.PlayerUtil.attackEntity(target);
         }
     }
+
 
     private boolean mwBeginDelay(PacketEvent event, net.minecraft.network.Packet<?> packet) {
         if (this.mwDelayTicks.getValue() == 0) {
@@ -386,7 +415,7 @@ public class Velocity extends Module {
         if (!this.isEnabled() || event.isCancelled()) {
             this.pendingExplosion = false;
             this.allowNext = true;
-        } else if (this.mode.getValue() == MODE_JUMP) {
+        } else if (this.isJumpMode()) {
             this.pendingExplosion = false;
             this.allowNext = true;
         } else if (!this.allowNext || !(Boolean) this.fakeCheck.getValue()) {
@@ -409,7 +438,7 @@ public class Velocity extends Module {
                 this.chanceCounter = this.chanceCounter % 100 + this.chance.getValue();
                 if (this.chanceCounter >= 100) {
                     this.jumpFlag = this.mode.getValue() == 2 && event.getY() > 0.0;
-                    this.delayActive = this.mode.getValue() == 3;
+                    this.delayActive = this.mode.getValue() == 4;
                     if (this.horizontal.getValue() > 0) {
                         event.setX(event.getX() * (double) this.horizontal.getValue() / 100.0);
                         event.setZ(event.getZ() * (double) this.horizontal.getValue() / 100.0);
@@ -430,8 +459,18 @@ public class Velocity extends Module {
     @EventTarget
     public void onUpdate(UpdateEvent event) {
         if (event.getType() == EventType.POST) {
+            boolean reduceRelease = false;
+            if (this.mode.getValue() == MODE_PREDICTION && this.reduce.getValue()
+                    && this.reverseFlag) {
+                KillAura killAura = (KillAura) Myau.moduleManager.modules.get(KillAura.class);
+                reduceRelease = killAura != null && killAura.isEnabled()
+                        && killAura.velocityCanReduce(1, killAura.blockTick)
+                        && killAura.shouldAutoBlock();
+            }
             if (this.reverseFlag
                     && (
+                    reduceRelease
+                            ||
                     this.canDelay()
                             || this.isInLiquidOrWeb()
                             || Myau.delayManager.getDelay() >= (long) this.delayTicks.getValue()
@@ -444,13 +483,22 @@ public class Velocity extends Module {
                 }
                 Myau.delayManager.setDelayState(false, DelayModules.VELOCITY);
                 this.reverseFlag = false;
+                if (this.mode.getValue() == MODE_PREDICTION && this.reduce.getValue()
+                        && this.extraAttack.getValue()) {
+                    KillAura killAura = (KillAura) Myau.moduleManager.modules.get(KillAura.class);
+                    if (killAura != null && killAura.isEnabled() && killAura.getTarget() != null) {
+                        PacketUtil.sendPacket(new net.minecraft.network.play.client.C02PacketUseEntity(
+                                killAura.getTarget(),
+                                net.minecraft.network.play.client.C02PacketUseEntity.Action.ATTACK));
+                    }
+                }
             }
             if (this.delayActive) {
                 MoveUtil.setSpeed(MoveUtil.getSpeed(), MoveUtil.getMoveYaw());
                 this.delayActive = false;
             }
 
-            if (this.mode.getValue() == 4) {
+            if (this.mode.getValue() == 5) {
                 int hurtTime = mc.thePlayer.hurtTime;
 
                 if (hurtTime >= 8) {
@@ -553,8 +601,9 @@ public class Velocity extends Module {
                 S12PacketEntityVelocity packet = (S12PacketEntityVelocity) event.getPacket();
                 if (packet.getEntityID() == mc.thePlayer.getEntityId()) {
                     LongJump longJump = (LongJump) Myau.moduleManager.modules.get(LongJump.class);
-                    if (this.mode.getValue() == 2
+                    if (this.isDelayMode()
                             && !this.reverseFlag
+                            && this.canOwnDelay()
                             && this.canTriggerDelay()
                             && !this.canDelay()
                             && !this.isInLiquidOrWeb()

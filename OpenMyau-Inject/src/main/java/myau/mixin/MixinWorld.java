@@ -3,7 +3,10 @@ package myau.mixin;
 import myau.Myau;
 import myau.module.modules.AntiObbyTrap;
 import myau.module.modules.Jesus;
+import myau.util.ISkipTickPlayer;
+import myau.util.ISkipTickWorld;
 import net.minecraft.block.state.IBlockState;
+import net.minecraft.client.Minecraft;
 import net.minecraft.client.entity.EntityPlayerSP;
 import net.minecraft.entity.Entity;
 import net.minecraft.init.Blocks;
@@ -17,7 +20,47 @@ import org.spongepowered.asm.mixin.injection.Redirect;
 
 @SideOnly(Side.CLIENT)
 @Mixin(value = {World.class}, priority = 9999)
-public abstract class MixinWorld {
+public abstract class MixinWorld implements ISkipTickWorld {
+    @org.spongepowered.asm.mixin.Unique
+    private int leader$skipTicks;
+
+    @Override
+    public int leader$getSkipTicks() {
+        return this.leader$skipTicks;
+    }
+
+    @Override
+    public void leader$setSkipTicks(int ticks) {
+        this.leader$skipTicks = Math.max(0, ticks);
+    }
+
+    @org.spongepowered.asm.mixin.Unique
+    private boolean leader$skipPlayerUpdate(Entity entity) {
+        Minecraft mc = Minecraft.getMinecraft();
+        if (this.leader$skipTicks <= 0 || (Object) this != mc.theWorld || entity != mc.thePlayer) {
+            return false;
+        }
+        this.leader$skipTicks--;
+        ((ISkipTickPlayer) entity).leader$onSkipUpdate();
+        return true;
+    }
+
+    @Redirect(method = {"updateEntityWithOptionalForce"},
+            at = @At(value = "INVOKE", target = "Lnet/minecraft/entity/Entity;onUpdate()V"))
+    private void leader$updateOrSkip(Entity entity) {
+        if (!this.leader$skipPlayerUpdate(entity)) {
+            entity.onUpdate();
+        }
+    }
+
+    @Redirect(method = {"updateEntityWithOptionalForce"},
+            at = @At(value = "INVOKE", target = "Lnet/minecraft/entity/Entity;updateRidden()V"))
+    private void leader$updateRiddenOrSkip(Entity entity) {
+        if (!this.leader$skipPlayerUpdate(entity)) {
+            entity.updateRidden();
+        }
+    }
+
     @Redirect(
             method = {"handleMaterialAcceleration"},
             at = @At(

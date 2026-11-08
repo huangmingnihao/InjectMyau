@@ -155,9 +155,27 @@ val hudAnimationRegression by tasks.registering(JavaExec::class) {
     mainClass.set("myau.util.HudAnimationTest")
 }
 
+val legitScaffoldCameraRegression by tasks.registering(JavaExec::class) {
+    group = "verification"
+    description = "Checks final camera translations after launcher crouch modifiers and input releases."
+    dependsOn(tasks.testClasses)
+    // Lunar dumps use a newer class-file version than the ASM bundled with legacy Forge.
+    classpath = files(shadowImpl.filter { it.name.startsWith("asm-") }) +
+        sourceSets.test.get().output + sourceSets.test.get().compileClasspath
+    javaLauncher.set(javaToolchains.launcherFor {
+        languageVersion.set(JavaLanguageVersion.of(8))
+    })
+    mainClass.set("myau.inject.LegitScaffoldCameraTest")
+    val lunarRenderer = file("../_lunar_dump/classes/net/minecraft/client/renderer/EntityRenderer.class")
+    if (lunarRenderer.isFile) {
+        inputs.file(lunarRenderer)
+        args(lunarRenderer.absolutePath)
+    }
+}
+
 tasks.check {
     dependsOn(bedDigPathRegression, radarProjectionRegression, renderFrameHookRegression,
-        colorPropertyRegression, hudAnimationRegression)
+        colorPropertyRegression, hudAnimationRegression, legitScaffoldCameraRegression)
 }
 tasks.withType(org.gradle.jvm.tasks.Jar::class) {
     archiveBaseName.set(jarName)

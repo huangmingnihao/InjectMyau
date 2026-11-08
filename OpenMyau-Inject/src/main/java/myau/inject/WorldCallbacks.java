@@ -1,6 +1,8 @@
 package myau.inject;
 
 import myau.Myau;
+import myau.event.EventManager;
+import myau.events.LivingUpdateEvent;
 import myau.module.modules.AntiObbyTrap;
 import myau.module.modules.BedESP;
 import myau.module.modules.Chams;
@@ -8,11 +10,13 @@ import myau.module.modules.ESP;
 import myau.module.modules.Jesus;
 import myau.module.modules.ViewClip;
 import myau.module.modules.Xray;
+import myau.util.WorldTickUtil;
 import net.minecraft.block.Block;
 import net.minecraft.block.BlockBed;
 import net.minecraft.block.BlockBed.EnumPartType;
 import net.minecraft.block.state.IBlockState;
 import net.minecraft.client.entity.EntityPlayerSP;
+import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.BlockModelRenderer;
 import net.minecraft.client.renderer.WorldRenderer;
 import net.minecraft.client.renderer.chunk.SetVisibility;
@@ -31,6 +35,24 @@ import java.nio.IntBuffer;
 public final class WorldCallbacks {
     public static final String OWNER = "myau/inject/WorldCallbacks";
     private WorldCallbacks() {
+    }
+
+    public static void updateEntityOrSkip(Entity entity) {
+        if (entity == Minecraft.getMinecraft().thePlayer
+                && WorldTickUtil.consumeSkipTick(Minecraft.getMinecraft().theWorld)) {
+            EventManager.call(new LivingUpdateEvent());
+            return;
+        }
+        entity.onUpdate();
+    }
+
+    public static void updateRiddenOrSkip(Entity entity) {
+        if (entity == Minecraft.getMinecraft().thePlayer
+                && WorldTickUtil.consumeSkipTick(Minecraft.getMinecraft().theWorld)) {
+            EventManager.call(new LivingUpdateEvent());
+            return;
+        }
+        entity.updateRidden();
     }
     public static Object shouldSideBeRendered(Block block, IBlockAccess access,
                                               BlockPos pos, EnumFacing facing) {

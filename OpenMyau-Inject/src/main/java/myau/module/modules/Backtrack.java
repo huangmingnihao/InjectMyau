@@ -1,6 +1,8 @@
 package myau.module.modules;
 
+import myau.Myau;
 import myau.access.AccessorRenderManager;
+import myau.enums.DelayModules;
 import myau.event.EventTarget;
 import myau.event.types.EventType;
 import myau.event.types.Priority;
@@ -226,6 +228,11 @@ public class Backtrack extends Module {
                 && attacked.hurtTime * 50 > this.maxHurtTime.getValue()) {
             return;
         }
+
+
+        if (!this.canHoldPackets()) {
+            return;
+        }
         if (this.target == null || attacked != this.target) {
             this.releaseAll();
             this.targetPos = attacked.getPositionVector();
@@ -235,7 +242,7 @@ public class Backtrack extends Module {
     }
 
 
-    @EventTarget(Priority.LOW)
+    @EventTarget(Priority.LOWEST)
     public void onPacket(PacketEvent event) {
         if (!this.isEnabled() || event.getType() != EventType.RECEIVE || mc.isSingleplayer()) {
             return;
@@ -277,6 +284,10 @@ public class Backtrack extends Module {
         if (this.currentDelay <= 0) {
             return;
         }
+        if (!this.canContinueHolding()) {
+            this.releaseAll();
+            return;
+        }
 
         Vec3 nextTargetSnapshot = this.readTargetPosition(packet);
         if (nextTargetSnapshot != null) {
@@ -296,6 +307,31 @@ public class Backtrack extends Module {
         if (!this.isPacketQueueEmpty()) {
             this.flushPendingPackets();
         }
+    }
+
+    private boolean canHoldPackets() {
+        if (this.maxDelay.getValue().floatValue() <= 0.0F) {
+            return false;
+        }
+        if (Myau.delayManager != null
+                && (Myau.delayManager.getDelayModule() != DelayModules.NONE
+                || !Myau.delayManager.delayedPacket.isEmpty())) {
+            return false;
+        }
+        return this.canContinueHolding();
+    }
+
+    private boolean canContinueHolding() {
+        if (this.maxDelay.getValue().floatValue() <= 0.0F) {
+            return false;
+        }
+        if (Myau.moduleManager != null) {
+            Stuck stuck = (Stuck) Myau.moduleManager.getModule(Stuck.class);
+            if (stuck != null && stuck.isEnabled()) {
+                return false;
+            }
+        }
+        return true;
     }
 
     private Vec3 readTargetPosition(Packet<?> packet) {

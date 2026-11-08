@@ -4,6 +4,12 @@ import net.minecraft.network.Packet;
 import net.minecraft.network.play.client.*;
 
 public class PlayerStateManager {
+    private long movementSequence;
+
+    public long getMovementSequence() {
+        return this.movementSequence;
+    }
+
     public boolean attacking = false;
     public boolean digging = false;
     public boolean placing = false;
@@ -27,6 +33,7 @@ public class PlayerStateManager {
             this.swinging = true;
         }
         if (packet instanceof C03PacketPlayer) {
+            this.movementSequence++;
             this.attacking = false;
             this.digging = false;
             this.placing = false;

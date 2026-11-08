@@ -127,6 +127,8 @@ public class HUD extends Module {
     public final BooleanProperty blinkTimer = new BooleanProperty("blink-timer", true);
     public final BooleanProperty toggleSound = new BooleanProperty("toggle-sounds", true);
     public final BooleanProperty toggleAlerts = new BooleanProperty("toggle-alerts", false);
+    public final ModeProperty chatPrefix = new ModeProperty(
+            "chat-prefix", 0, new String[]{"ANTIIMPERIALIST", "IMPALER"});
     private static boolean shows(Module module) {
         return module.isEnabled() && !module.isHidden();
     }
@@ -175,6 +177,12 @@ public class HUD extends Module {
     }
     @Override
     public void verifyValue(String name) {
+        if ("chat-prefix".equals(name)) {
+            Myau.clientName = this.chatPrefix.getValue() == 1
+                    ? "&7[&cI&6m&ep&aa&bl&9e&dr&7]&r "
+                    : "&7[&bAnti&dImperialist&7]&r ";
+            return;
+        }
         if (!"video-preset".equals(name) || !videoPreset.getValue()) return;
         arraylistStyle.setValue(STYLE_GLOW);
         colorMode.setValue(4);
@@ -355,6 +363,11 @@ public class HUD extends Module {
     }
 
 
+
+
+
+
+
     private void fillCornerFan(float centerX, float centerY, float radius, int corner,
                                int red, int green, int blue, int alpha) {
         if (radius <= 0.0F) {
@@ -416,6 +429,10 @@ public class HUD extends Module {
     }
 
 
+
+
+
+
     private void fillConnectedShape(List<float[]> rows, float expand, int color, int accent, float tintTop) {
         boolean anchoredLeft = this.posX.getValue() == 0;
         float requestedRadius = (float) this.backgroundRounding.getValue();
@@ -467,6 +484,9 @@ public class HUD extends Module {
             }
         }
     }
+
+
+
 
 
     private void drawConnectedBackground(List<float[]> rows) {

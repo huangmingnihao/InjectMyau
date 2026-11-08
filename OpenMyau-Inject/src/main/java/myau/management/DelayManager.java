@@ -74,6 +74,39 @@ public class DelayManager {
         return this.delayModule;
     }
 
+    public synchronized boolean beginDelay(
+            DelayModules owner, Packet<INetHandlerPlayClient> firstPacket) {
+        if (owner == DelayModules.NONE
+                || this.delayModule != DelayModules.NONE
+                || !this.delayedPacket.isEmpty()) {
+            return false;
+        }
+        this.delayedPacket.offer(firstPacket);
+        this.delay = 0L;
+        this.delayModule = owner;
+        return true;
+    }
+
+    public synchronized void discardDelay(DelayModules owner) {
+        if (this.delayModule != owner) {
+            return;
+        }
+        this.delayModule = DelayModules.NONE;
+        this.delayedPacket.clear();
+        this.delay = 0L;
+    }
+
+    public synchronized void releaseDelay(DelayModules owner) {
+        if (this.delayModule != owner) {
+            return;
+        }
+        if (Minecraft.getMinecraft().getNetHandler() == null) {
+            this.discardDelay(owner);
+        } else {
+            this.setDelayState(false, owner);
+        }
+    }
+
     public void delay(DelayModules modules) {
         this.delayModule = modules;
     }

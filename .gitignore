@@ -38,6 +38,13 @@ dist-web/
 # Local agent notes
 /AGENTS.md
 
+# Local Lunar client dump
+/_lunar_dump/
+
+# Local regression tests
+/OpenMyau-Inject/src/test/java/myau/util/MeowtilsCompatTest.java
+/OpenMyau-Inject/src/test/java/myau/module/modules/TellyActivationTest.java
+
 # Java
 *.class
 hs_err_pid*

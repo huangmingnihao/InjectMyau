@@ -83,6 +83,7 @@ public final class Categories {
                 add(modules, Stasis.class);
                 add(modules, Timer.class);
                 add(modules, InventoryMove.class);
+                add(modules, InvWalk.class);
                 break;
             case RENDER:
                 add(modules, BlockCounter.class);
@@ -105,6 +106,7 @@ public final class Categories {
                 add(modules, ChestESP.class);
                 add(modules, Trajectories.class);
                 add(modules, Radar.class);
+                add(modules, FireballPredict.class);
                 break;
             case PLAYER:
                 add(modules, Clutch.class);
@@ -117,6 +119,8 @@ public final class Categories {
                 add(modules, ChestStealer.class);
                 add(modules, InvManager.class);
                 add(modules, Scaffold.class);
+                add(modules, LeaderScaffold.class);
+                add(modules, LeaderStuck.class);
                 add(modules, GodBridge.class);
                 add(modules, BridgeAssist.class);
                 add(modules, BlockIn.class);

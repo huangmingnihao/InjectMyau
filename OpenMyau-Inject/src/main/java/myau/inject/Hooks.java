@@ -176,6 +176,16 @@ public final class Hooks {
     }
     private static void world() {
         String callbacks = WorldCallbacks.OWNER;
+        HookRegistry.hook(WORLD, "updateEntityWithOptionalForce",
+                        "(Lnet/minecraft/entity/Entity;Z)V").in(callbacks)
+                .at(Position.REPLACE_INVOKE)
+                .invoking("net.minecraft.entity.Entity", "onUpdate", "()V")
+                .calls("updateEntityOrSkip", "(Lnet/minecraft/entity/Entity;)V").add();
+        HookRegistry.hook(WORLD, "updateEntityWithOptionalForce",
+                        "(Lnet/minecraft/entity/Entity;Z)V").in(callbacks)
+                .at(Position.REPLACE_INVOKE)
+                .invoking("net.minecraft.entity.Entity", "updateRidden", "()V")
+                .calls("updateRiddenOrSkip", "(Lnet/minecraft/entity/Entity;)V").add();
         HookRegistry.hook(WORLD_RENDERER, "putColorMultiplier", "(FFFI)V").in(callbacks)
                 .at(Position.REPLACE_INVOKE)
                 .invokingUnmapped("java.nio.IntBuffer", "put", "(II)Ljava/nio/IntBuffer;")
@@ -313,6 +323,7 @@ public final class Hooks {
                 .invoking("net.minecraft.util.MovementInput", "updatePlayerMoveState", "()V")
                 .calls("onMoveInput").add();
 
+
         HookRegistry.hook(LOCAL_PLAYER, "onLivingUpdate", update).in(BridgeAssistCallbacks.OWNER)
                 .at(Position.AFTER_INVOKE)
                 .invoking("net.minecraft.util.MovementInput", "updatePlayerMoveState", "()V")
@@ -367,6 +378,10 @@ public final class Hooks {
                 .calls("onGetMouseOverReturn", "()V").add();
         HookRegistry.hook(ENTITY_RENDERER, "orientCamera", "(F)V").in(camera)
                 .at(Position.REPLACE_INVOKE)
+                .invoking("net.minecraft.client.renderer.GlStateManager", "translate", "(FFF)V")
+                .calls("cameraTranslate", "(FFF)V").add();
+        HookRegistry.hook(ENTITY_RENDERER, "orientCamera", "(F)V").in(camera)
+                .at(Position.REPLACE_INVOKE)
                 .invoking("net.minecraft.util.Vec3", "distanceTo",
                         "(Lnet/minecraft/util/Vec3;)D")
                 .calls("cameraDistance",
@@ -399,6 +414,9 @@ public final class Hooks {
     }
 
 
+
+
+
     private static void registerFreelook() {
         String fl = FreeLookCallbacks.OWNER;
         String activeRenderInfo = "net.minecraft.client.renderer.ActiveRenderInfo";
@@ -411,6 +429,7 @@ public final class Hooks {
                         + "Lnet/minecraft/entity/Entity;Lnet/minecraft/entity/Entity;"
                         + "Lnet/minecraft/client/settings/GameSettings;F)V";
 
+
         HookRegistry.hook(ENTITY_RENDERER, "updateCameraAndRender", "(FJ)V").in(fl)
                 .at(Position.HEAD).calls("frameTick").add();
 
@@ -418,6 +437,7 @@ public final class Hooks {
                 .at(Position.REPLACE_FIELD).getfield()
                 .field(MINECRAFT, "inGameHasFocus", "Z")
                 .calls("overrideMouse", "(Lnet/minecraft/client/Minecraft;)Z").add();
+
 
         HookRegistry.hook(ENTITY_RENDERER, "orientCamera", "(F)V").in(fl)
                 .at(Position.REPLACE_FIELD).getfield()
@@ -436,6 +456,7 @@ public final class Hooks {
                 .field(ENTITY, "prevRotationPitch", "F")
                 .calls("orientPrevPitch", "(Lnet/minecraft/entity/Entity;)F").add();
 
+
         HookRegistry.hook(activeRenderInfo, "updateRenderInfo",
                         "(Lnet/minecraft/entity/player/EntityPlayer;Z)V").in(fl)
                 .at(Position.REPLACE_FIELD).getfield()
@@ -446,6 +467,7 @@ public final class Hooks {
                 .at(Position.REPLACE_FIELD).getfield()
                 .field(ENTITY, "rotationPitch", "F")
                 .calls("renderInfoPitch", "(Lnet/minecraft/entity/Entity;)F").add();
+
 
         HookRegistry.hook(renderGlobal, "setupTerrain", setupTerrainDesc).in(fl)
                 .at(Position.REPLACE_FIELD).getfield()
@@ -465,6 +487,7 @@ public final class Hooks {
                                 + "Lnet/minecraft/entity/Entity;D)"
                                 + "Lorg/lwjgl/util/vector/Vector3f;").add();
 
+
         HookRegistry.hook(RENDER_MANAGER, "cacheActiveRenderInfo", cacheRenderInfoDesc)
                 .in(fl)
                 .at(Position.REPLACE_FIELD).putfield()
@@ -477,6 +500,7 @@ public final class Hooks {
                 .field(RENDER_MANAGER, "playerViewY", "F")
                 .calls("setPlayerViewY",
                         "(Lnet/minecraft/client/renderer/entity/RenderManager;F)V").add();
+
 
         HookRegistry.hook(MINECRAFT, "runTick", V).in(fl)
                 .at(Position.REPLACE_FIELD).putfield()
@@ -534,6 +558,10 @@ public final class Hooks {
                 .invokingUnmapped(PLAYER, "func_70051_ag", "()Z")
                 .calls("fovSprinting", "(Lnet/minecraft/entity/player/EntityPlayer;)Z").add();
     }
+
+
+
+
 
 
     private static void stuck() {
