@@ -381,6 +381,44 @@ public class RenderUtil {
         double d4 = RenderUtil.lerpDouble(entity.posZ, entity.lastTickPosZ, AccessorMinecraft.getTimer(RenderUtil.mc).renderPartialTicks);
         RenderUtil.drawBoundingBox(entity.getEntityBoundingBox().expand(expand, expand, expand).offset(d2 - entity.posX, d3 - entity.posY, d4 - entity.posZ).offset(-AccessorRenderManager.getRenderPosX(mc.getRenderManager()), -AccessorRenderManager.getRenderPosY(mc.getRenderManager()), -AccessorRenderManager.getRenderPosZ(mc.getRenderManager())), red, green, blue, alpha, lineWidth);
     }
+    public static void drawEntityFilledBox(Entity entity, float partialTicks, int rgb, int alpha, boolean throughWalls) {
+        if (entity == null || alpha <= 0) {
+            return;
+        }
+        double x = lerpDouble(entity.posX, entity.lastTickPosX, partialTicks);
+        double y = lerpDouble(entity.posY, entity.lastTickPosY, partialTicks);
+        double z = lerpDouble(entity.posZ, entity.lastTickPosZ, partialTicks);
+        AxisAlignedBB box = entity.getEntityBoundingBox().expand(0.05D, 0.05D, 0.05D)
+                .offset(x - entity.posX, y - entity.posY, z - entity.posZ)
+                .offset(-AccessorRenderManager.getRenderPosX(mc.getRenderManager()),
+                        -AccessorRenderManager.getRenderPosY(mc.getRenderManager()),
+                        -AccessorRenderManager.getRenderPosZ(mc.getRenderManager()));
+
+        // Keep temporary GL changes outside GlStateManager's cache and restore them together.
+        GL11.glPushAttrib(GL11.GL_ALL_ATTRIB_BITS);
+        try {
+            GL11.glEnable(GL11.GL_BLEND);
+            OpenGlHelper.glBlendFunc(GL11.GL_SRC_ALPHA, GL11.GL_ONE_MINUS_SRC_ALPHA, GL11.GL_ONE, GL11.GL_ZERO);
+            GL11.glDisable(GL11.GL_TEXTURE_2D);
+            GL11.glDisable(GL11.GL_LIGHTING);
+            GL11.glDisable(GL11.GL_FOG);
+            GL11.glDisable(GL11.GL_ALPHA_TEST);
+            GL11.glDisable(GL11.GL_CULL_FACE);
+            GL11.glPolygonMode(GL11.GL_FRONT_AND_BACK, GL11.GL_FILL);
+            GL11.glDepthMask(false);
+            if (throughWalls) {
+                GL11.glDisable(GL11.GL_DEPTH_TEST);
+            } else {
+                GL11.glEnable(GL11.GL_DEPTH_TEST);
+                GL11.glDepthFunc(GL11.GL_LEQUAL);
+            }
+            drawFilledBoxAlpha(box, (rgb >> 16) & 0xFF, (rgb >> 8) & 0xFF, rgb & 0xFF, Math.min(alpha, 255));
+        } finally {
+            GL11.glPopAttrib();
+            GlStateManager.resetColor();
+        }
+    }
+
     public static void drawBlockBox(BlockPos blockPos, double height, int red, int green, int blue) {
         RenderUtil.drawFilledBox(new AxisAlignedBB(blockPos.getX(), blockPos.getY(), blockPos.getZ(), (double) blockPos.getX() + 1.0, (double) blockPos.getY() + height, (double) blockPos.getZ() + 1.0).offset(-AccessorRenderManager.getRenderPosX(mc.getRenderManager()), -AccessorRenderManager.getRenderPosY(mc.getRenderManager()), -AccessorRenderManager.getRenderPosZ(mc.getRenderManager())), red, green, blue);
     }
