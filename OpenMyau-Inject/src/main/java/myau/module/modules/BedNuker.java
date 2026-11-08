@@ -2,6 +2,7 @@ package myau.module.modules;
 
 import com.google.common.base.CaseFormat;
 import myau.Myau;
+import myau.access.AccessorEntityPlayerSP;
 import myau.enums.ChatColors;
 import myau.enums.DelayModules;
 import myau.event.EventTarget;
@@ -318,6 +319,16 @@ public class BedNuker extends Module {
         return this.findVisibleHit(pos) != null;
     }
 
+    private boolean isAimingAt(BlockPos pos, float yaw, float pitch) {
+        MovingObjectPosition hit = RotationUtil.rayTrace(yaw, pitch, 8.0, 1.0F);
+        return hit != null && hit.typeOfHit == MovingObjectType.BLOCK && pos.equals(hit.getBlockPos());
+    }
+
+    private boolean isServerAimingAt(BlockPos pos) {
+        return this.isAimingAt(pos, AccessorEntityPlayerSP.getLastReportedYaw(mc.thePlayer),
+                AccessorEntityPlayerSP.getLastReportedPitch(mc.thePlayer));
+    }
+
     private int layersFromBed(BlockPos pos, BlockPos bed) {
         int best = Integer.MAX_VALUE;
         for (BlockPos half : this.bedHalves(bed)) {
@@ -555,7 +566,8 @@ public class BedNuker extends Module {
                 }
                 switch (this.breakStage) {
                     case 0:
-                        if (!mc.thePlayer.isUsingItem()) {
+                        if (!mc.thePlayer.isUsingItem()
+                                && (!this.noThroughWall.getValue() || this.isServerAimingAt(this.targetBed))) {
                             this.doSwing();
                             PacketUtil.sendPacket(
                                     new C07PacketPlayerDigging(Action.START_DESTROY_BLOCK, this.targetBed, this.getHitFacing(this.targetBed))
@@ -579,8 +591,9 @@ public class BedNuker extends Module {
                         BlockPos target = this.targetBed;
                         float delta = tick * this.getBreakDelta(blockState, target, slot, canBreak);
                         mc.effectRenderer.addBlockHitEffects(this.targetBed, this.getHitFacing(this.targetBed));
-                        if (this.breakProgress >= 1.0F - 0.3F * ((float) this.speed.getValue().intValue() / 100.0F)
-                                || delta >= 1.0F - 0.3F * ((float) this.speed.getValue().intValue() / 100.0F)) {
+                        if ((this.breakProgress >= 1.0F - 0.3F * ((float) this.speed.getValue().intValue() / 100.0F)
+                                || delta >= 1.0F - 0.3F * ((float) this.speed.getValue().intValue() / 100.0F))
+                                && (!this.noThroughWall.getValue() || this.isServerAimingAt(this.targetBed))) {
                             if (this.mode.getValue() == 1) {
                                 this.readyToBreak = true;
                                 this.savedSlot = mc.thePlayer.inventory.currentItem;
@@ -643,23 +656,39 @@ public class BedNuker extends Module {
             if (this.requireClick.getValue() && !this.attackHeld()) {
                 return;
             }
-            if (this.isReady()) {
+            if (this.isReady() || this.noThroughWall.getValue() && this.targetBed != null) {
                 Vec3 point;
+                float[] rotations;
                 if (this.noThroughWall.getValue()) {
-                    MovingObjectPosition hit = this.findVisibleHit(this.targetBed);
+                    // The client removes a completed block before the next target is selected.
+                    // Keep the last server aim through that transition and through SWAP mining ticks.
+                    MovingObjectPosition hit = this.breakStage == 2 || mc.theWorld.isAirBlock(this.targetBed)
+                            ? null : this.findVisibleHit(this.targetBed);
                     if (hit == null) {
-                        return;
+                        rotations = new float[]{event.getYaw(), event.getPitch()};
+                    } else {
+                        point = hit.hitVec;
+                        rotations = RotationUtil.getRotationsTo(
+                                point.xCoord - mc.thePlayer.posX,
+                                point.yCoord - mc.thePlayer.posY - (double) mc.thePlayer.getEyeHeight(),
+                                point.zCoord - mc.thePlayer.posZ, event.getYaw(), event.getPitch());
+                        if (!this.isAimingAt(this.targetBed, rotations[0], rotations[1])) {
+                            float[] exact = RotationUtil.getRotations(point.xCoord, point.yCoord, point.zCoord);
+                            float exactYaw = RotationUtil.wrapAngleDiff(exact[0], rotations[0]);
+                            if (Math.abs(exactYaw - rotations[0]) <= 2.0F
+                                    && Math.abs(exact[1] - rotations[1]) <= 2.0F) {
+                                rotations = new float[]{exactYaw, exact[1]};
+                            }
+                        }
                     }
-                    point = hit.hitVec;
                 } else {
-
                     point = new Vec3(this.targetBed.getX() + 0.5,
                             this.targetBed.getY() + 0.5, this.targetBed.getZ() + 0.5);
+                    rotations = RotationUtil.getRotationsTo(
+                            point.xCoord - mc.thePlayer.posX,
+                            point.yCoord - mc.thePlayer.posY - (double) mc.thePlayer.getEyeHeight(),
+                            point.zCoord - mc.thePlayer.posZ, event.getYaw(), event.getPitch());
                 }
-                double x = point.xCoord - mc.thePlayer.posX;
-                double y = point.yCoord - mc.thePlayer.posY - (double) mc.thePlayer.getEyeHeight();
-                double z = point.zCoord - mc.thePlayer.posZ;
-                float[] rotations = RotationUtil.getRotationsTo(x, y, z, event.getYaw(), event.getPitch());
                 event.setRotation(rotations[0], rotations[1], 5);
                 event.setPervRotation(this.moveFix.getValue() != 0 ? rotations[0] : mc.thePlayer.rotationYaw, 5);
             }
