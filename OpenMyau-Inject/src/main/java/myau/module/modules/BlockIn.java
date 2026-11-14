@@ -64,6 +64,16 @@ public class BlockIn extends Module {
     public final IntProperty rotationTolerance = new IntProperty("rotation-tolerance", 25, 20, 100);
     public final KeyProperty selectKey = new KeyProperty("select-key", KeyProperty.NONE);
     public final BooleanProperty progressBar = new BooleanProperty("progress-bar", true);
+
+
+
+
+
+
+
+    public final BooleanProperty noKeyRequired = new BooleanProperty("no-key-required", false);
+
+    public final BooleanProperty disableWhenDone = new BooleanProperty("disable-when-done", false);
     private boolean placing;
     private boolean slotWasSwapped;
     private int prevSlot = -1;
@@ -103,7 +113,16 @@ public class BlockIn extends Module {
         return this.holding ? this.heldPitch : mc.thePlayer.rotationPitch;
     }
 
+
+
+
+
+
+
     private boolean isSelectHeld() {
+        if (this.noKeyRequired.getValue()) {
+            return true;
+        }
         return this.selectKey.isHeld();
     }
 
@@ -219,6 +238,13 @@ public class BlockIn extends Module {
         }
 
         this.lastFillCount = this.fillCount;
+
+
+
+
+        if (this.disableWhenDone.getValue() && this.fillCount >= ENCLOSING_CELLS) {
+            this.setEnabled(false);
+        }
     }
     @EventTarget
     public void onRender2D(Render2DEvent event) {

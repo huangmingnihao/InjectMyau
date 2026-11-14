@@ -16,11 +16,15 @@ import myau.property.properties.BooleanProperty;
 import myau.property.properties.ColorProperty;
 import myau.property.properties.FloatProperty;
 import myau.property.properties.IntProperty;
+import myau.property.properties.ModeProperty;
 import myau.util.ItemUtil;
 import myau.util.RenderUtil;
 import myau.util.RotationUtil;
 import myau.util.TeamUtil;
 import net.minecraft.client.Minecraft;
+import net.minecraft.client.entity.EntityPlayerSP;
+import net.minecraft.client.multiplayer.WorldClient;
+import net.minecraft.client.network.NetHandlerPlayClient;
 import net.minecraft.client.renderer.GlStateManager;
 import net.minecraft.entity.Entity;
 import net.minecraft.entity.EntityLivingBase;
@@ -31,11 +35,16 @@ import net.minecraft.network.play.server.S12PacketEntityVelocity;
 import net.minecraft.network.play.server.S13PacketDestroyEntities;
 import net.minecraft.network.play.server.S14PacketEntity;
 import net.minecraft.network.play.server.S18PacketEntityTeleport;
+import net.minecraft.network.play.server.S01PacketJoinGame;
+import net.minecraft.network.play.server.S07PacketRespawn;
+import net.minecraft.network.play.server.S27PacketExplosion;
 import net.minecraft.network.play.server.S40PacketDisconnect;
 import net.minecraft.util.AxisAlignedBB;
 import net.minecraft.util.Vec3;
 import net.minecraft.world.WorldSettings.GameType;
 
+import java.util.ArrayDeque;
+import java.util.Deque;
 import java.util.Queue;
 import java.util.concurrent.ConcurrentLinkedQueue;
 
@@ -47,25 +56,56 @@ public class Backtrack extends Module {
     private static final double MOVEMENT_DISTANCE_EPS = 0.001;
     private static final int WARMUP_TICKS = 20;
 
-    public final FloatProperty maxDelay = new FloatProperty("delay", 200.0F, 50.0F, 500.0F, 10.0F);
+
+    public final ModeProperty mode = new ModeProperty("Mode", 0, new String[]{"Default", "LeaderLite"});
+
+    // ==================================================================
+
+    // ==================================================================
+    public final FloatProperty maxDelay =
+            new FloatProperty("BT Delay", 200.0F, 50.0F, 500.0F, 10.0F, this::isDefaultMode);
     public final FloatProperty minDistance =
-            new FloatProperty("distance-min", 0.0F, 0.0F, 3.0F, 0.1F);
+            new FloatProperty("distance-min", 0.0F, 0.0F, 3.0F, 0.1F, this::isDefaultMode);
     public final FloatProperty maxDistance =
-            new FloatProperty("distance-max", 4.0F, 1.0F, 6.0F, 0.1F);
-    public final FloatProperty cooldown = new FloatProperty("cooldown", 0.0F, 0.0F, 2000.0F, 50.0F);
+            new FloatProperty("distance-max", 4.0F, 1.0F, 6.0F, 0.1F, this::isDefaultMode);
+    public final FloatProperty cooldown =
+            new FloatProperty("cooldown", 0.0F, 0.0F, 2000.0F, 50.0F, this::isDefaultMode);
     public final FloatProperty maxHurtTime =
-            new FloatProperty("max-hurt-time", 500.0F, 0.0F, 500.0F, 10.0F);
-    public final BooleanProperty disableAdventure = new BooleanProperty("disable-adventure", true);
-    public final BooleanProperty flushOnDamage = new BooleanProperty("flush-on-damage", true);
-    public final BooleanProperty ignoreTeammates = new BooleanProperty("ignore-teammates", true);
-    public final BooleanProperty weaponOnly = new BooleanProperty("weapon-only", false);
+            new FloatProperty("max-hurt-time", 500.0F, 0.0F, 500.0F, 10.0F, this::isDefaultMode);
+    public final BooleanProperty disableAdventure =
+            new BooleanProperty("disable-adventure", true, this::isDefaultMode);
+    public final BooleanProperty flushOnDamage =
+            new BooleanProperty("flush-on-damage", true, this::isDefaultMode);
+    public final BooleanProperty ignoreTeammates =
+            new BooleanProperty("ignore-teammates", true, this::isDefaultMode);
+    public final BooleanProperty weaponOnly =
+            new BooleanProperty("weapon-only", false, this::isDefaultMode);
     public final BooleanProperty showServerPosition =
-            new BooleanProperty("show-server-position", true);
+            new BooleanProperty("show-server-position", true, this::isDefaultMode);
     public final ColorProperty positionColor =
-            new ColorProperty("position-color", 0x0000FA, () -> this.showServerPosition.getValue());
-    public final BooleanProperty debug = new BooleanProperty("debug", false);
+            new ColorProperty("position-color", 0x0000FA,
+                    () -> this.isDefaultMode() && this.showServerPosition.getValue());
+    public final BooleanProperty debug =
+            new BooleanProperty("debug", false, this::isDefaultMode);
     public final IntProperty positionAlpha =
-            new IntProperty("position-alpha", 100, 0, 255, 5, () -> this.showServerPosition.getValue());
+            new IntProperty("position-alpha", 100, 0, 255, 5,
+                    () -> this.isDefaultMode() && this.showServerPosition.getValue());
+
+    // ==================================================================
+
+    // ==================================================================
+    public final FloatProperty llMinRange =
+            new FloatProperty("Min Range", 3.0F, 1.0F, 6.0F, this::isLeaderLiteMode);
+    public final FloatProperty llMaxRange =
+            new FloatProperty("Max Range", 6.0F, 1.0F, 6.0F, this::isLeaderLiteMode);
+    public final IntProperty llDelay =
+            new IntProperty("Delay", 200, 0, 1000, this::isLeaderLiteMode);
+    public final IntProperty llChance =
+            new IntProperty("Chance", 100, 5, 100, this::isLeaderLiteMode);
+    public final BooleanProperty llResetOnVelocity =
+            new BooleanProperty("Reset On Velocity", true, this::isLeaderLiteMode);
+    public final BooleanProperty llRender =
+            new BooleanProperty("Render", true, this::isLeaderLiteMode);
 
     private final Queue<TimedPacket> packetQueue = new ConcurrentLinkedQueue<TimedPacket>();
     private Vec3 targetPos = null;
@@ -81,12 +121,36 @@ public class Backtrack extends Module {
     private long positionInterpStartMs = 0L;
     private String lastDebugLine = null;
 
+
+    private static final int LL_MAX_BUFFERED_PACKETS = 512;
+    private final Deque<LLDelayedMovement> llQueue = new ArrayDeque<LLDelayedMovement>();
+    private EntityPlayer llTrackedPlayer;
+    private EntityPlayerSP llTrackedLocalPlayer;
+    private WorldClient llTrackedWorld;
+    private NetHandlerPlayClient llTrackedHandler;
+    private Vec3 llTruePos;
+    private Vec3 llLastTruePos;
+    private boolean llBacktracking;
+    private Packet<?> llProcessingPacket;
+
     public Backtrack() {
         super("Backtrack", false);
     }
 
+    public boolean isLeaderLiteMode() {
+        return this.mode.getValue() == 1;
+    }
+
+    public boolean isDefaultMode() {
+        return this.mode.getValue() == 0;
+    }
+
     @Override
     public String[] getSuffix() {
+
+        if (this.isLeaderLiteMode()) {
+            return new String[]{this.llDelay.getValue() + "ms"};
+        }
         return new String[]{
                 this.currentDelay > 0 && !this.isPacketQueueEmpty()
                         ? this.currentDelay + "ms"
@@ -128,6 +192,10 @@ public class Backtrack extends Module {
 
     @EventTarget
     public void onTick(TickEvent event) {
+        if (this.isLeaderLiteMode()) {
+            this.llOnTick(event);
+            return;
+        }
         if (event.getType() != EventType.PRE || !this.isEnabled()) {
             return;
         }
@@ -198,6 +266,10 @@ public class Backtrack extends Module {
 
     @EventTarget
     public void onAttack(AttackEvent event) {
+        if (this.isLeaderLiteMode()) {
+            this.llOnAttack(event);
+            return;
+        }
         if (!this.isEnabled() || mc.isSingleplayer() || mc.thePlayer == null) {
             return;
         }
@@ -244,6 +316,13 @@ public class Backtrack extends Module {
 
     @EventTarget(Priority.LOWEST)
     public void onPacket(PacketEvent event) {
+        if (this.isLeaderLiteMode()) {
+            if (this.isEnabled() && event.getType() == EventType.RECEIVE
+                    && this.llReceiveOnMainThread(event.getPacket())) {
+                event.setCancelled(true);
+            }
+            return;
+        }
         if (!this.isEnabled() || event.getType() != EventType.RECEIVE || mc.isSingleplayer()) {
             return;
         }
@@ -463,6 +542,10 @@ public class Backtrack extends Module {
 
     @EventTarget
     public void onRender3D(Render3DEvent event) {
+        if (this.isLeaderLiteMode()) {
+            this.llRender3D(event);
+            return;
+        }
         if (!this.isEnabled() || mc.isSingleplayer() || !this.showServerPosition.getValue()) {
             return;
         }
@@ -561,6 +644,299 @@ public class Backtrack extends Module {
         private TimedPacket(Packet<?> packet, long releaseAt) {
             this.packet = packet;
             this.releaseAt = releaseAt;
+        }
+    }
+
+    // ==================================================================
+
+    //
+
+
+    // ==================================================================
+
+    private void llClearAll() {
+        this.llQueue.clear();
+        this.llTrackedPlayer = null;
+        this.llTrackedLocalPlayer = null;
+        this.llTrackedWorld = null;
+        this.llTrackedHandler = null;
+        this.llTruePos = null;
+        this.llLastTruePos = null;
+        this.llBacktracking = false;
+    }
+
+    private void llResetAndRelease() {
+        this.llReleaseAll();
+        this.llClearAll();
+    }
+
+    private boolean llIsSessionValid() {
+        return this.llTrackedWorld != null
+                && this.llTrackedHandler != null
+                && mc.theWorld == this.llTrackedWorld
+                && mc.thePlayer == this.llTrackedLocalPlayer
+                && mc.getNetHandler() == this.llTrackedHandler
+                && this.llTrackedHandler.getNetworkManager().isChannelOpen();
+    }
+
+    private boolean llCanReplay() {
+        return this.llIsSessionValid()
+                && this.llTrackedPlayer != null
+                && this.llTrackedWorld.getEntityByID(this.llTrackedPlayer.getEntityId()) == this.llTrackedPlayer;
+    }
+
+    @SuppressWarnings("unchecked")
+    private void llReplay(Packet<?> packet) {
+        Packet<?> previous = this.llProcessingPacket;
+        this.llProcessingPacket = packet;
+        try {
+            if (mc.getNetHandler() != null) {
+                ((Packet<net.minecraft.network.play.INetHandlerPlayClient>) packet)
+                        .processPacket(mc.getNetHandler());
+            }
+        } catch (Throwable error) {
+            myau.inject.Log.swallowed(error);
+        } finally {
+            this.llProcessingPacket = previous;
+        }
+    }
+
+    private void llReleaseAll() {
+        this.llBacktracking = false;
+        while (!this.llQueue.isEmpty()) {
+            if (!this.llCanReplay()) {
+                this.llQueue.clear();
+                return;
+            }
+            this.llReplay(this.llQueue.removeFirst().packet);
+        }
+    }
+
+    private boolean llIsTrackedValid() {
+        if (!this.llCanReplay() || mc.thePlayer.isDead) return false;
+        if (this.llTrackedPlayer.isDead || this.llTrackedPlayer.deathTime > 0) return false;
+        return mc.thePlayer.getDistanceToEntity(this.llTrackedPlayer)
+                <= this.llMaxRange.getValue() + 3.0F;
+    }
+
+    private AxisAlignedBB llBuildBox(Vec3 pos) {
+        double border = this.llTrackedPlayer.getCollisionBorderSize();
+        return this.llTrackedPlayer
+                .getEntityBoundingBox()
+                .offset(
+                        pos.xCoord - this.llTrackedPlayer.posX,
+                        pos.yCoord - this.llTrackedPlayer.posY,
+                        pos.zCoord - this.llTrackedPlayer.posZ)
+                .expand(border, border, border);
+    }
+
+    private void llCheckBacktrackRange() {
+        if (!this.llBacktracking || this.llTrackedPlayer == null || this.llTruePos == null) return;
+        double visibleDist = RotationUtil.distanceToBox(
+                this.llBuildBox(this.llTrackedPlayer.getPositionVector()));
+        double trueDist = RotationUtil.distanceToBox(this.llBuildBox(this.llTruePos));
+        if (trueDist < this.llMinRange.getValue()
+                || trueDist > this.llMaxRange.getValue()
+                || trueDist <= visibleDist + 1.0E-6) {
+            this.llReleaseAll();
+        }
+    }
+
+    private boolean llCanHoldPackets() {
+        if (this.llDelay.getValue() <= 0) return false;
+        if (Myau.delayManager != null
+                && (Myau.delayManager.getDelayModule() != DelayModules.NONE
+                || !Myau.delayManager.delayedPacket.isEmpty())) {
+            return false;
+        }
+        Stuck stuck = Myau.moduleManager == null
+                ? null
+                : (Stuck) Myau.moduleManager.getModule(Stuck.class);
+        return stuck == null || !stuck.isEnabled();
+    }
+
+
+    private void llProcessQueue() {
+        long now = System.nanoTime();
+        long delayNanos = (long) this.llDelay.getValue() * 1_000_000L;
+        while (!this.llQueue.isEmpty()) {
+            if (!this.llCanReplay()) {
+                this.llClearAll();
+                return;
+            }
+            LLDelayedMovement movement = this.llQueue.peekFirst();
+            if (now - movement.receivedAt < delayNanos) break;
+            this.llReplay(this.llQueue.removeFirst().packet);
+        }
+    }
+
+    private void llOnAttack(AttackEvent event) {
+        if (!this.isEnabled()) return;
+        Entity entity = event.getTarget();
+        if (!(entity instanceof EntityPlayer)) return;
+        EntityPlayer player = (EntityPlayer) entity;
+        if (mc.thePlayer == null || mc.theWorld == null || mc.getNetHandler() == null
+                || mc.thePlayer.isDead || player == mc.thePlayer || player.isDead
+                || player.deathTime > 0
+                || mc.theWorld.getEntityByID(player.getEntityId()) != player) return;
+        if (this.llTrackedPlayer == player && this.llIsTrackedValid()) return;
+        this.llResetAndRelease();
+        if (Math.random() > this.llChance.getValue() / 100.0) {
+            return;
+        }
+        this.llTrackedPlayer = player;
+        this.llTrackedLocalPlayer = mc.thePlayer;
+        this.llTrackedWorld = mc.theWorld;
+        this.llTrackedHandler = mc.getNetHandler();
+        this.llTruePos = new Vec3(
+                player.serverPosX / 32.0D,
+                player.serverPosY / 32.0D,
+                player.serverPosZ / 32.0D);
+        this.llLastTruePos = this.llTruePos;
+    }
+
+    private void llOnTick(TickEvent event) {
+        if (!this.isEnabled() || event.getType() == EventType.POST) return;
+        if (!this.llIsSessionValid()) {
+            this.llClearAll();
+            return;
+        }
+        if (!this.llIsTrackedValid() || !this.llCanHoldPackets()) {
+            this.llResetAndRelease();
+            return;
+        }
+        this.llLastTruePos = this.llTruePos;
+        this.llCheckBacktrackRange();
+        this.llProcessQueue();
+    }
+
+    private boolean llReceiveOnMainThread(Packet<?> packet) {
+        if (packet == this.llProcessingPacket) return false;
+        if (packet instanceof S01PacketJoinGame
+                || packet instanceof S07PacketRespawn
+                || packet instanceof S40PacketDisconnect) {
+            this.llClearAll();
+            return false;
+        }
+        if (!this.isEnabled()) {
+            this.llResetAndRelease();
+            return false;
+        }
+        if (!this.llIsSessionValid()) {
+            this.llClearAll();
+            return false;
+        }
+        if (packet instanceof S08PacketPlayerPosLook) {
+            this.llResetAndRelease();
+            return false;
+        }
+        boolean localVelocity =
+                packet instanceof S12PacketEntityVelocity
+                        && ((S12PacketEntityVelocity) packet).getEntityID()
+                        == mc.thePlayer.getEntityId();
+        if (packet instanceof S27PacketExplosion) {
+            S27PacketExplosion explosion = (S27PacketExplosion) packet;
+            localVelocity = explosion.func_149149_c() != 0
+                    || explosion.func_149144_d() != 0
+                    || explosion.func_149147_e() != 0;
+        }
+        if (localVelocity && this.llResetOnVelocity.getValue()) {
+            this.llResetAndRelease();
+            return false;
+        }
+        if (!this.llIsTrackedValid() || !this.llCanHoldPackets()) {
+            this.llResetAndRelease();
+            return false;
+        }
+        if (packet instanceof S13PacketDestroyEntities) {
+            for (int id : ((S13PacketDestroyEntities) packet).getEntityIDs()) {
+                if (id == this.llTrackedPlayer.getEntityId()) {
+                    this.llResetAndRelease();
+                    break;
+                }
+            }
+            return false;
+        }
+        Vec3 previous = this.llTruePos;
+        Vec3 next;
+        boolean teleport = packet instanceof S18PacketEntityTeleport;
+        if (packet instanceof S14PacketEntity.S15PacketEntityRelMove
+                || packet instanceof S14PacketEntity.S17PacketEntityLookMove) {
+            S14PacketEntity move = (S14PacketEntity) packet;
+            if (move.getEntity(this.llTrackedWorld) != this.llTrackedPlayer) return false;
+            next = previous.addVector(
+                    move.func_149062_c() / 32.0D,
+                    move.func_149061_d() / 32.0D,
+                    move.func_149064_e() / 32.0D);
+        } else if (teleport) {
+            S18PacketEntityTeleport move = (S18PacketEntityTeleport) packet;
+            if (move.getEntityId() != this.llTrackedPlayer.getEntityId()) return false;
+            next = new Vec3(move.getX() / 32.0D, move.getY() / 32.0D, move.getZ() / 32.0D);
+        } else {
+            return false;
+        }
+        this.llProcessQueue();
+        if (!this.llIsTrackedValid()) {
+            this.llClearAll();
+            return false;
+        }
+        this.llTruePos = next;
+        double oldDistance = RotationUtil.distanceToBox(this.llBuildBox(previous));
+        double newDistance = RotationUtil.distanceToBox(this.llBuildBox(next));
+        boolean movingAway = newDistance > oldDistance + 1.0E-6;
+        boolean inRange = newDistance >= this.llMinRange.getValue()
+                && newDistance <= this.llMaxRange.getValue();
+        if (movingAway
+                && inRange
+                && (!teleport || previous.squareDistanceTo(next) < 64.0)
+                && this.llQueue.size() < LL_MAX_BUFFERED_PACKETS) {
+            this.llBacktracking = true;
+            this.llQueue.addLast(new LLDelayedMovement(packet, System.nanoTime()));
+            return true;
+        }
+        this.llReleaseAll();
+        return false;
+    }
+
+    private void llRender3D(Render3DEvent event) {
+        if (!this.isEnabled() || !this.llRender.getValue()) return;
+        if (!this.llCanReplay() || !this.llBacktracking || this.llTruePos == null) return;
+
+        float partialTicks = event.getPartialTicks();
+        Vec3 from = this.llLastTruePos != null ? this.llLastTruePos : this.llTruePos;
+        Vec3 smoothed = new Vec3(
+                from.xCoord + (this.llTruePos.xCoord - from.xCoord) * partialTicks,
+                from.yCoord + (this.llTruePos.yCoord - from.yCoord) * partialTicks,
+                from.zCoord + (this.llTruePos.zCoord - from.zCoord) * partialTicks);
+
+        AxisAlignedBB box = this.llBuildBox(smoothed)
+                .offset(
+                        -mc.getRenderManager().viewerPosX,
+                        -mc.getRenderManager().viewerPosY,
+                        -mc.getRenderManager().viewerPosZ);
+
+        GlStateManager.pushMatrix();
+        GlStateManager.enableBlend();
+        GlStateManager.disableTexture2D();
+        GlStateManager.disableDepth();
+        GlStateManager.tryBlendFuncSeparate(
+                org.lwjgl.opengl.GL11.GL_SRC_ALPHA,
+                org.lwjgl.opengl.GL11.GL_ONE_MINUS_SRC_ALPHA, 1, 0);
+        RenderUtil.drawFilledBox(box, 255, 255, 255);
+        RenderUtil.drawBoundingBox(box, 255, 255, 255, 204, 1.5F);
+        GlStateManager.enableDepth();
+        GlStateManager.enableTexture2D();
+        GlStateManager.disableBlend();
+        GlStateManager.popMatrix();
+    }
+
+    private static final class LLDelayedMovement {
+        private final Packet<?> packet;
+        private final long receivedAt;
+
+        private LLDelayedMovement(Packet<?> packet, long receivedAt) {
+            this.packet = packet;
+            this.receivedAt = receivedAt;
         }
     }
 }

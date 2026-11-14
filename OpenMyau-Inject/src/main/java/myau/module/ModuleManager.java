@@ -36,6 +36,11 @@ public class ModuleManager {
     }
     @EventTarget
     public void onKey(KeyEvent event) {
+
+
+        if (event.getKey() == 0) {
+            return;
+        }
         for (Module module : this.modules.values()) {
             if (module.getKey() != event.getKey()) {
                 continue;

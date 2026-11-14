@@ -16,8 +16,13 @@ public class PlayerStateManager {
     public boolean swapping = false;
     public boolean swinging = false;
 
-    public void handlePacket(Packet<?> packet) {
-        if (packet instanceof C02PacketUseEntity) {
+
+    public boolean hasInputAction() {
+        return this.attacking || this.digging || this.placing
+                || this.swapping || this.swinging;
+    }
+
+    public void handlePacket(Packet<?> packet) {        if (packet instanceof C02PacketUseEntity) {
             this.attacking = true;
         }
         if (packet instanceof C07PacketPlayerDigging) {

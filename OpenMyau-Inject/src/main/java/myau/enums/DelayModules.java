@@ -4,5 +4,7 @@ public enum DelayModules {
     NONE,
     VELOCITY,
     BED_NUKER,
-    STUCK
+    STUCK,
+
+    VELOCITY_SKIP_TICK
 }

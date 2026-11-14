@@ -2518,6 +2518,48 @@
     "net.minecraft.world.storage.WorldInfo$9": "ato$9"
   },
   "fields": {
+    "net.minecraft.util.Timer": {
+      "counter": {
+        "notch": "i",
+        "srg": "field_74285_i"
+      },
+      "elapsedPartialTicks": {
+        "notch": "e",
+        "srg": "field_74279_e"
+      },
+      "elapsedTicks": {
+        "notch": "b",
+        "srg": "field_74280_b"
+      },
+      "lastHRTime": {
+        "notch": "f",
+        "srg": "field_74276_f"
+      },
+      "lastSyncHRClock": {
+        "notch": "h",
+        "srg": "field_74284_h"
+      },
+      "lastSyncSysClock": {
+        "notch": "g",
+        "srg": "field_74277_g"
+      },
+      "renderPartialTicks": {
+        "notch": "c",
+        "srg": "field_74281_c"
+      },
+      "ticksPerSecond": {
+        "notch": "a",
+        "srg": "field_74282_a"
+      },
+      "timeSyncAdjustment": {
+        "notch": "j",
+        "srg": "field_74283_j"
+      },
+      "timerSpeed": {
+        "notch": "d",
+        "srg": "field_74278_d"
+      }
+    },
     "net.minecraft.block.Block": {
       "AIR_ID": {
         "notch": "a",
@@ -5384,6 +5426,12 @@
     }
   },
   "methods": {
+    "net.minecraft.util.Timer": {
+      "updateTimer": {
+        "notch": "a",
+        "srg": "func_74275_a"
+      }
+    },
     "net.minecraft.block.Block": {
       "addCollisionBoxesToList": {
         "notch": "a",

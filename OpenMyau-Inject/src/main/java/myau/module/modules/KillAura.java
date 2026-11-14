@@ -45,6 +45,8 @@ import myau.util.RotationUtil;
 import myau.util.TeamUtil;
 import myau.util.TimerUtil;
 import net.minecraft.client.Minecraft;
+import net.minecraft.client.entity.EntityPlayerSP;
+import net.minecraft.client.multiplayer.WorldClient;
 import net.minecraft.client.entity.EntityOtherPlayerMP;
 import net.minecraft.client.gui.inventory.GuiContainer;
 import net.minecraft.entity.Entity;
@@ -153,6 +155,24 @@ public class KillAura extends Module {
     private boolean fakeBlockState = false;
     private long attackDelayMS = 0L;
     public int blockTick = 0;
+
+    // ==================================================================
+
+    // ==================================================================
+    private static final int SKIP_CYCLE_TICKS = 4;
+    private static final int SKIP_BURST_TICKS = 2;
+    private static final int SKIP_BLOCK_TICKS = SKIP_CYCLE_TICKS - SKIP_BURST_TICKS - 1;
+    private static final float SKIP_BURST_SPEED = 2.0F;
+    private final myau.util.TimerSpeedLease skipAutoBlockTimer = new myau.util.TimerSpeedLease();
+
+    private boolean skipAutoBlockBoostPending;
+    private int skipAutoBlockAttackTicksRemaining;
+    private volatile boolean skipAutoBlockSequence;
+    private long skipAutoBlockReleaseMovement;
+    private long skipAutoBlockFreezeRequest;
+    private long skipAutoBlockClockNanos;
+    private EntityPlayerSP skipAutoBlockPlayer;
+    private WorldClient skipAutoBlockWorld;
     private boolean swapped = false;
     private boolean postBlock = false;
     private boolean postBlink = false;
@@ -178,7 +198,7 @@ public class KillAura extends Module {
         );
         this.lagClass = new ModeProperty(
                 "LagClass", 0,
-                new String[]{"Tick", "Combo", "Full", "Swap", "Stop", "Click"},
+                new String[]{"Tick", "Combo", "Full", "Swap", "Stop", "Click", "SkipTick"},
                 this::isLag
         );
         this.tickMode = new ModeProperty(
@@ -225,10 +245,26 @@ public class KillAura extends Module {
         this.teams = new BooleanProperty("Teams", true);
     }
     private long getAttackDelay() {
-        return this.isBlocking ? (long) (1000.0F / this.autoBlockCPS.getValue()) : 1000L / RandomUtil.nextLong(this.minCPS.getValue(), this.maxCPS.getValue());
+
+
+
+        return this.isBlocking || this.isLagSkipTick()
+                ? (long) (1000.0F / this.autoBlockCPS.getValue())
+                : 1000L / RandomUtil.nextLong(this.minCPS.getValue(), this.maxCPS.getValue());
     }
 
     private boolean performAttack(float yaw, float pitch) {
+
+        if (Velocity.shouldCancelKillAuraAttack()) {
+            return false;
+        }
+
+        if (this.isLagSkipTick()
+                && (this.attackDelayMS > 0L
+                || (Myau.playerStateManager != null
+                && Myau.playerStateManager.hasInputAction()))) {
+            return false;
+        }
         if (!Myau.playerStateManager.digging && !Myau.playerStateManager.placing) {
             if (this.isPlayerBlocking() && this.autoBlock.getValue() != 1) {
                 return false;
@@ -351,6 +387,9 @@ public class KillAura extends Module {
     }
 
     private boolean canAutoBlock() {
+        if (this.isAutoBlockSuspended()) {
+            return false;
+        }
         if (!ItemUtil.isHoldingSword()) {
             return false;
         } else {
@@ -367,6 +406,26 @@ public class KillAura extends Module {
                                 && this.isValidTarget((EntityLivingBase) entity)
                                 && this.isInBlockRange((EntityLivingBase) entity)
                 );
+    }
+
+
+    public boolean isVelocityRangeTarget(EntityLivingBase target) {
+        return target != null && this.isValidTarget(target);
+    }
+
+
+
+
+
+    private boolean isAutoBlockSuspended() {
+        if (Myau.moduleManager == null) {
+            return false;
+        }
+        LeaderStuck stuck = (LeaderStuck) Myau.moduleManager.getModule(LeaderStuck.class);
+        if (stuck != null && stuck.isStuckActive()) {
+            return true;
+        }
+        return Velocity.isSkipTickCombatActive();
     }
 
     private boolean isValidTarget(EntityLivingBase entityLivingBase) {
@@ -618,6 +677,10 @@ public class KillAura extends Module {
     @EventTarget(Priority.LOW)
     public void onUpdate(UpdateEvent event) {
         if (this.isEnabled() && event.getType() == EventType.PRE) {
+
+            if (this.isLagSkipTick()) {
+                this.updateSkipTickAttackClock(System.nanoTime());
+            }
             if (this.attackDelayMS > 0L) {
                 this.attackDelayMS -= 50L;
             }
@@ -706,9 +769,27 @@ public class KillAura extends Module {
                     Myau.blinkManager.setBlinkState(false, BlinkModules.AUTO_BLOCK);
                     Myau.blinkManager.setBlinkState(true, BlinkModules.AUTO_BLOCK);
                 }
+
+                this.finishSkipTickAutoBlock();
             }
         }
         if (event.getType() == EventType.POST && this.isEnabled()) {
+
+            if (this.skipAutoBlockBoostPending
+                    && Myau.playerStateManager != null
+                    && Myau.playerStateManager.getMovementSequence() > this.skipAutoBlockReleaseMovement) {
+                this.skipAutoBlockBoostPending = false;
+                if (!this.isEnabled() || !this.isLagSkipTick()
+                        || !this.skipAutoBlockTimer.acquire(SKIP_BURST_SPEED, SKIP_BURST_TICKS)) {
+                    this.resetSkipTickAutoBlock(false);
+                } else {
+                    this.skipAutoBlockAttackTicksRemaining = SKIP_BURST_TICKS;
+                }
+            }
+
+            if (this.isLagSkipTick()) {
+                this.completeSkipTickBurstTick();
+            }
             if (postBlinkReset) {
                 Myau.blinkManager.setBlinkState(false, BlinkModules.AUTO_BLOCK);
                 Myau.blinkManager.setBlinkState(true, BlinkModules.AUTO_BLOCK);
@@ -913,6 +994,8 @@ public class KillAura extends Module {
 
     @Override
     public void onDisabled() {
+
+        this.resetSkipTickAutoBlock(true);
         Myau.blinkManager.setBlinkState(false, BlinkModules.AUTO_BLOCK);
         this.blockingState = false;
         this.fakeBlockState = false;
@@ -1023,8 +1106,287 @@ public class KillAura extends Module {
                 return updateLagStopAutoBlock();
             case "Click":
                 return updateLagClickAutoBlock();
+            case "SkipTick":
+                return this.updateLagSkipTickAutoBlock();
         }
         return new AutoBlockAction();
+    }
+
+
+
+
+
+
+
+
+
+
+
+
+
+    private AutoBlockAction updateLagSkipTickAutoBlock() {
+        AutoBlockAction action = new AutoBlockAction(false, false, false);
+        this.skipAutoBlockPlayer = mc.thePlayer;
+        this.skipAutoBlockWorld = mc.theWorld;
+        this.skipAutoBlockSequence = true;
+
+        if (!this.hasValidTarget()) {
+            if (this.isPlayerBlocking()) this.stopBlock();
+            this.resetSkipTickAutoBlock(false);
+            this.isBlocking = false;
+            this.fakeBlockState = false;
+            Velocity.extraAttacked = false;
+            return action;
+        }
+
+        if (Myau.playerStateManager != null
+                && !Myau.playerStateManager.digging
+                && !Myau.playerStateManager.placing) {
+            switch (this.blockTick) {
+                case 0:
+                    action.attack = !this.isPlayerBlocking();
+                    action.startBlock = !this.isPlayerBlocking();
+
+
+
+                    action.startBlink = true;
+                    this.blockTick = 1;
+                    break;
+                case 1:
+                    if (!this.isPlayerBlocking()) action.startBlock = true;
+
+
+                    if (this.isPlayerBlocking()) {
+                        this.requestSkipTickBlockFreeze();
+                    }
+                    break;
+                case 2: {
+                    LeaderStuck stuck = (LeaderStuck) Myau.moduleManager.getModule(LeaderStuck.class);
+                    if (stuck == null
+                            || !stuck.hasStartedFreezeRequest(this.skipAutoBlockFreezeRequest)) {
+                        this.blockTick = 1;
+                        break;
+                    }
+                    if (this.target == null
+                            || !this.isBoxInAttackRange(this.target.getBox())) break;
+                    if (this.isPlayerBlocking()) this.stopBlock();
+                    this.skipAutoBlockReleaseMovement =
+                            Myau.playerStateManager.getMovementSequence();
+                    this.skipAutoBlockBoostPending = true;
+                    this.blockTick = 3;
+                    break;
+                }
+                case 3:
+                    if (Myau.playerStateManager.getMovementSequence()
+                            > this.skipAutoBlockReleaseMovement) {
+                        if (this.skipAutoBlockTimer.isActive()
+                                && this.skipAutoBlockAttackTicksRemaining > 0) {
+                            action.attack = this.attackDelayMS <= 0L;
+                            action.startBlock = this.skipAutoBlockAttackTicksRemaining == 1;
+                        } else if (!this.skipAutoBlockBoostPending) {
+                            action.startBlock = true;
+                        }
+                    }
+                    break;
+                default:
+                    this.blockTick = 0;
+            }
+        }
+
+        this.isBlocking = this.isPlayerBlocking();
+        this.fakeBlockState = this.alwaysRenderBlocking.getValue();
+        return action;
+    }
+
+
+
+    private int skipFreezeFailures = 0;
+    private static final int SKIP_FREEZE_MAX_FAILURES = 10;
+
+    private void requestSkipTickBlockFreeze() {
+        if (!this.isEnabled()
+                || !this.isLagSkipTick()
+                || this.blockTick != 1
+                || this.skipAutoBlockAttackTicksRemaining > 0
+                || !this.isPlayerBlocking()
+                || this.target == null
+                || !this.isBoxInAttackRange(this.target.getBox())) return;
+
+
+
+
+
+        if (Myau.blinkManager != null
+                && Myau.blinkManager.getBlinkingModule() == BlinkModules.AUTO_BLOCK) {
+            Myau.blinkManager.setBlinkState(false, BlinkModules.AUTO_BLOCK);
+        }
+
+        LeaderStuck stuck = (LeaderStuck) Myau.moduleManager.getModule(LeaderStuck.class);
+        if (stuck != null && stuck.freezeForTicks(SKIP_BLOCK_TICKS, false)) {
+            this.skipAutoBlockFreezeRequest = stuck.getFreezeRequestSequence();
+            this.blockTick = 2;
+            this.skipFreezeFailures = 0;
+        } else if (++this.skipFreezeFailures >= SKIP_FREEZE_MAX_FAILURES) {
+
+
+            this.skipFreezeFailures = 0;
+            this.stopBlock();
+            this.resetSkipTickAutoBlock(false);
+            this.blockTick = 0;
+        }
+    }
+
+
+    private void finishSkipTickAutoBlock() {
+        if (!this.isLagSkipTick()) return;
+        this.isBlocking = this.isPlayerBlocking();
+        if (this.skipAutoBlockAttackTicksRemaining > 0) return;
+        if (this.blockTick == 3
+                && this.isBlocking
+                && Myau.playerStateManager.getMovementSequence() > this.skipAutoBlockReleaseMovement) {
+            this.blockTick = 1;
+        }
+        this.requestSkipTickBlockFreeze();
+    }
+
+
+    private void completeSkipTickBurstTick() {
+        if (this.skipAutoBlockAttackTicksRemaining <= 0) return;
+        if (!this.skipAutoBlockTimer.isActive()) {
+            this.skipAutoBlockAttackTicksRemaining = 0;
+            return;
+        }
+        if (--this.skipAutoBlockAttackTicksRemaining > 0) return;
+        this.skipAutoBlockTimer.release();
+        if (this.isEnabled() && this.isLagSkipTick()
+                && this.blockTick == 3 && this.isPlayerBlocking()) {
+            this.blockTick = 1;
+            this.requestSkipTickBlockFreeze();
+        }
+    }
+
+
+    private void resetSkipTickAutoBlock(boolean discardBlink) {
+        this.skipAutoBlockTimer.release();
+        this.skipAutoBlockBoostPending = false;
+        this.skipAutoBlockAttackTicksRemaining = 0;
+        this.skipAutoBlockSequence = false;
+        this.skipAutoBlockPlayer = null;
+        this.skipAutoBlockWorld = null;
+        this.skipAutoBlockFreezeRequest = 0;
+        if (this.isLagSkipTick()) {
+            this.blockTick = 0;
+            this.attackDelayMS = Math.max(0L, this.attackDelayMS);
+        }
+    }
+
+
+    private void updateSkipTickAttackClock(long now) {
+        if (this.skipAutoBlockClockNanos == 0L || now < this.skipAutoBlockClockNanos) {
+            this.skipAutoBlockClockNanos = now;
+            return;
+        }
+        boolean accelerated =
+                this.skipAutoBlockTimer.isActive() && this.skipAutoBlockAttackTicksRemaining > 0;
+        long elapsedMillis = accelerated ? 50L : (now - this.skipAutoBlockClockNanos) / 1_000_000L;
+        if (elapsedMillis > 0) {
+            if (accelerated) this.skipAutoBlockClockNanos = now;
+            else this.skipAutoBlockClockNanos += elapsedMillis * 1_000_000L;
+            long maximumDue = this.getAttackDelay() * (SKIP_BURST_TICKS - 1L);
+            this.attackDelayMS = Math.max(-maximumDue, this.attackDelayMS - elapsedMillis);
+        }
+    }
+
+
+
+
+
+
+
+
+
+    public boolean performVelocityAttack(float yaw, float pitch) {
+        if (!Velocity.canPerformSkipTickAttack()
+                || !this.isEnabled()
+                || !this.canAttack()
+                || this.target == null
+                || !this.isValidTarget(this.target.getEntity())
+                || !this.isBoxInAttackRange(this.target.getBox())) {
+            return false;
+        }
+        if (this.rotations.getValue() != 0
+                && RotationUtil.rayTrace(
+                        this.target.getBox(), yaw, pitch, this.attackRange.getValue())
+                == null) {
+            return false;
+        }
+        if (!Velocity.tryClaimSkipTickAttack()) {
+            return false;
+        }
+        this.prepareVelocityAttackWindow();
+        return this.sendAttackPacketWithSwing();
+    }
+
+
+    public void prepareVelocityAttackWindow() {
+        if (mc.thePlayer == null) {
+            return;
+        }
+        this.resetSkipTickAutoBlock(false);
+        if (Myau.blinkManager != null
+                && Myau.blinkManager.getBlinkingModule() == BlinkModules.AUTO_BLOCK) {
+            Myau.blinkManager.setBlinkState(false, BlinkModules.AUTO_BLOCK);
+        }
+        this.postBlock = false;
+        this.postSwap = false;
+        this.postBlink = false;
+        this.postBlinkReset = false;
+        if (this.isPlayerBlocking() || this.blockingState) {
+            this.stopBlock();
+        }
+        this.isBlocking = false;
+        this.blockingState = false;
+        this.fakeBlockState = false;
+        this.predictBlocking = false;
+        this.holdTicks = 0;
+        this.blockTick = 0;
+    }
+
+
+
+
+
+    private boolean sendAttackPacketWithSwing() {
+        if (!Velocity.canPerformSkipTickAttack()) {
+            return false;
+        }
+        AttackEvent event = new AttackEvent(this.target.getEntity());
+        EventManager.call(event);
+        if (!Velocity.canPerformSkipTickAttack()) {
+            return false;
+        }
+        AccessorPlayerControllerMP.callSyncCurrentPlayItem(mc.playerController);
+        if (!Velocity.canPerformSkipTickAttack()) {
+            return false;
+        }
+        mc.thePlayer.swingItem();
+        if (!Velocity.canPerformSkipTickAttack()) {
+            return false;
+        }
+        if (!PacketUtil.trySendPacket(
+                new C02PacketUseEntity(this.target.getEntity(), Action.ATTACK))) {
+            return false;
+        }
+        if (mc.playerController.getCurrentGameType() != GameType.SPECTATOR) {
+            PlayerUtil.attackEntity(this.target.getEntity());
+        }
+        this.hitRegistered = true;
+        return true;
+    }
+
+
+    public boolean isLagSkipTick() {
+        return this.isLag() && "SkipTick".equals(this.getLagModeName());
     }
 
     private AutoBlockAction updateManualAutoBlock() {

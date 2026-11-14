@@ -70,7 +70,7 @@ public class LeaderStuck extends Module {
     private long startedFreezeRequest;
 
     public LeaderStuck() {
-        super("LeaderStuck", false, false);
+        super("SmartStuck", false, false);
     }
 
     @Override

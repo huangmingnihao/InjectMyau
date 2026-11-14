@@ -10,7 +10,7 @@ import myau.events.LivingUpdateEvent;
 import myau.events.PacketEvent;
 import myau.events.TickEvent;
 import myau.events.UpdateEvent;
-import myau.mixin.IAccessorC0DPacketCloseWindow;
+import myau.access.AccessorC0DPacketCloseWindow;
 import myau.module.Module;
 import myau.property.properties.BooleanProperty;
 import myau.property.properties.IntProperty;
@@ -276,7 +276,7 @@ public class InvWalk extends Module {
         } else if (!(event.getPacket() instanceof C0EPacketClickWindow)) {
             if (event.getPacket() instanceof C0DPacketCloseWindow) {
                 C0DPacketCloseWindow packet = (C0DPacketCloseWindow) event.getPacket();
-                if (((IAccessorC0DPacketCloseWindow) packet).getWindowId() == 0) {
+                if (AccessorC0DPacketCloseWindow.getWindowId(packet) == 0) {
                     if (this.mode.getValue() == MODE_LEGIT_PLUS) {
                         if (!this.clickQueue.isEmpty()) {
                             this.clickQueue.clear();

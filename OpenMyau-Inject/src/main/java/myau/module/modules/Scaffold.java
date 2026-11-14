@@ -7,6 +7,7 @@ import myau.event.types.Priority;
 import myau.events.*;
 import myau.inject.Log;
 import myau.module.Module;
+import myau.property.Property;
 import myau.property.properties.BooleanProperty;
 import myau.property.properties.ModeProperty;
 import myau.property.properties.PercentProperty;
@@ -27,6 +28,7 @@ import net.minecraft.world.WorldSettings.GameType;
 import org.lwjgl.opengl.GL11;
 
 import java.awt.*;
+import java.lang.reflect.Field;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
@@ -85,26 +87,30 @@ public class Scaffold extends Module {
     private boolean shouldKeepY = false;
     private boolean towering = false;
     private EnumFacing targetFacing = null;
+
+    public final ModeProperty scaffoldMode =
+            new ModeProperty("Mode", 0, new String[]{"Myau", "LeaderLite"});
     public final ModeProperty rotationMode = new ModeProperty(
-            "rotations", 2, new String[]{"NONE", "DEFAULT", "BACKWARDS", "SIDEWAYS", "SMOOTH"});
-    public final ModeProperty moveFix = new ModeProperty("move-fix", 1, new String[]{"NONE", "SILENT"});
-    public final ModeProperty rotationSubmit = new ModeProperty("rotation-mode", 0, new String[]{"NORMAL", "GRIM"});
-    public final ModeProperty sprintMode = new ModeProperty("sprint", 0, new String[]{"NONE", "VANILLA"});
-    public final PercentProperty groundMotion = new PercentProperty("ground-motion", 100);
-    public final PercentProperty airMotion = new PercentProperty("air-motion", 100);
-    public final PercentProperty speedMotion = new PercentProperty("speed-motion", 100);
+            "rotations", 2, new String[]{"NONE", "DEFAULT", "BACKWARDS", "SIDEWAYS", "SMOOTH"}, this::isMyauMode);
+    public final ModeProperty moveFix = new ModeProperty("move-fix", 1, new String[]{"NONE", "SILENT"}, this::isMyauMode);
+    public final ModeProperty rotationSubmit = new ModeProperty("rotation-mode", 0, new String[]{"NORMAL", "GRIM"}, this::isMyauMode);
+    public final ModeProperty sprintMode = new ModeProperty("sprint", 0, new String[]{"NONE", "VANILLA"}, this::isMyauMode);
+    public final PercentProperty groundMotion = new PercentProperty("ground-motion", 100, this::isMyauMode);
+    public final PercentProperty airMotion = new PercentProperty("air-motion", 100, this::isMyauMode);
+    public final PercentProperty speedMotion = new PercentProperty("speed-motion", 100, this::isMyauMode);
     public final ModeProperty tower = new ModeProperty(
-            "tower", 0, new String[]{"NONE", "VANILLA", "EXTRA", "TELLY", "WATCHDOG_PREDICTION_1.8"}
+            "tower", 0, new String[]{"NONE", "VANILLA", "EXTRA", "TELLY", "WATCHDOG_PREDICTION_1.8"},
+            this::isMyauMode
     );
-    public final ModeProperty keepY = new ModeProperty("keep-y", 0, new String[]{"NONE", "Vanilla", "Extrea", "Keep-Y"});
-    public final BooleanProperty keepYonPress = new BooleanProperty("keep-y-on-press", false, () -> this.keepY.getValue() != 0);
-    public final BooleanProperty disableWhileJumpActive = new BooleanProperty("no-keep-y-on-jump-potion", false, () -> this.keepY.getValue() != 0);
-    public final BooleanProperty multiplace = new BooleanProperty("multi-place", true);
-    public final BooleanProperty safeWalk = new BooleanProperty("safe-walk", true);
-    public final BooleanProperty swing = new BooleanProperty("swing", true);
-    public final BooleanProperty itemSpoof = new BooleanProperty("item-spoof", false);
-    public final BooleanProperty blockCounter = new BooleanProperty("block-counter", true);
-    public final BooleanProperty debug = new BooleanProperty("debug", false);
+    public final ModeProperty keepY = new ModeProperty("keep-y", 0, new String[]{"NONE", "Vanilla", "Extrea", "Keep-Y"}, this::isMyauMode);
+    public final BooleanProperty keepYonPress = new BooleanProperty("keep-y-on-press", false, () -> this.isMyauMode() && this.keepY.getValue() != 0);
+    public final BooleanProperty disableWhileJumpActive = new BooleanProperty("no-keep-y-on-jump-potion", false, () -> this.isMyauMode() && this.keepY.getValue() != 0);
+    public final BooleanProperty multiplace = new BooleanProperty("multi-place", true, this::isMyauMode);
+    public final BooleanProperty safeWalk = new BooleanProperty("safe-walk", true, this::isMyauMode);
+    public final BooleanProperty swing = new BooleanProperty("swing", true, this::isMyauMode);
+    public final BooleanProperty itemSpoof = new BooleanProperty("item-spoof", false, this::isMyauMode);
+    public final BooleanProperty blockCounter = new BooleanProperty("block-counter", true, this::isMyauMode);
+    public final BooleanProperty debug = new BooleanProperty("debug", false, this::isMyauMode);
     private boolean shouldStopSprint() {
         if (this.isTowering()) {
             return false;
@@ -125,7 +131,12 @@ public class Scaffold extends Module {
 
     @Override
     public String[] getSuffix() {
-        return new String[]{this.keepY.getModeString()};
+
+
+        if (this.isLeaderLiteMode()) {
+            return this.leaderScaffoldRunner.getSuffix();
+        }
+        return new String[]{this.rotationMode.getModeString()};
     }
     private EnumFacing getBestFacing(BlockPos blockPos1, BlockPos blockPos3) {
         double offset = 0.0;
@@ -335,12 +346,90 @@ public class Scaffold extends Module {
     public Scaffold() {
         super("Scaffold", false);
     }
+
+
+    private final LeaderScaffold leaderScaffoldRunner = new LeaderScaffold();
+
+
+
+
+
+
+
+
+    public void registerInternalModules() {
+        myau.event.EventManager.register(this.leaderScaffoldRunner);
+    }
+
+    public LeaderScaffold getLeaderScaffoldRunner() {
+        return this.leaderScaffoldRunner;
+    }
+
+    public boolean isLeaderLiteMode() {
+        return this.scaffoldMode.getValue() == 1;
+    }
+
+
+    public boolean isMyauMode() {
+        return this.scaffoldMode.getValue() == 0;
+    }
+
+
+
+
+
+
+
+
+
+    public void adoptInternalProperties(myau.module.Module internal) {
+        if (internal == null || myau.Myau.propertyManager == null) {
+            return;
+        }
+        ArrayList<Property<?>> base =
+                myau.Myau.propertyManager.properties.get(this.getClass());
+        if (base == null) {
+            return;
+        }
+        for (final Field field : internal.getClass().getDeclaredFields()) {
+            field.setAccessible(true);
+            try {
+                Object obj = field.get(internal);
+                if (!(obj instanceof Property<?>)) {
+                    continue;
+                }
+                Property<?> property = (Property<?>) obj;
+                property.setOwner(internal);
+                if (!base.contains(property)) {
+                    base.add(property);
+                }
+            } catch (IllegalAccessException ignored) {
+            }
+        }
+    }
+
+
+
+
+
+
+    private void syncLeaderScaffold() {
+        boolean want = this.isEnabled() && this.isLeaderLiteMode();
+        if (want != this.leaderScaffoldRunner.isEnabled()) {
+            this.leaderScaffoldRunner.setEnabled(want);
+        }
+    }
     public int getSlot() {
         return this.lastSlot;
     }
     @EventTarget(Priority.HIGH)
     public void onUpdate(UpdateEvent event) {
-        if (this.isEnabled() && event.getType() == EventType.PRE) {
+
+        if (this.isEnabled() && this.isLeaderLiteMode()) {
+            this.syncLeaderScaffold();
+            return;
+        }
+        if (this.isEnabled() && !this.isLeaderLiteMode() && event.getType() == EventType.PRE) {
             if (this.rotationTick > 0) {
                 this.rotationTick--;
             }
@@ -640,7 +729,7 @@ public class Scaffold extends Module {
     }
     @EventTarget
     public void onStrafe(StrafeEvent event) {
-        if (this.isEnabled()) {
+        if (this.isEnabled() && !this.isLeaderLiteMode()) {
             if (!mc.thePlayer.isCollidedHorizontally
                     && mc.thePlayer.hurtTime <= 5
                     && !mc.thePlayer.isPotionActive(Potion.jump)
@@ -790,7 +879,7 @@ public class Scaffold extends Module {
 
     @EventTarget
     public void onMoveInput(MoveInputEvent event) {
-        if (this.isEnabled()) {
+        if (this.isEnabled() && !this.isLeaderLiteMode()) {
             if (this.moveFix.getValue() == 1
                     && myau.management.RotationState.isActived()
                     && myau.management.RotationState.getPriority() == 3.0F
@@ -831,7 +920,7 @@ public class Scaffold extends Module {
     }
     @EventTarget
     public void onLivingUpdate(LivingUpdateEvent event) {
-        if (this.isEnabled()) {
+        if (this.isEnabled() && !this.isLeaderLiteMode()) {
             float speed = this.getSpeed();
             if (speed != 1.0F) {
                 if (mc.thePlayer.movementInput.moveForward != 0.0F && mc.thePlayer.movementInput.moveStrafe != 0.0F) {
@@ -848,7 +937,7 @@ public class Scaffold extends Module {
     }
     @EventTarget
     public void onSafeWalk(SafeWalkEvent event) {
-        if (this.isEnabled() && this.safeWalk.getValue()) {
+        if (this.isEnabled() && !this.isLeaderLiteMode() && this.safeWalk.getValue()) {
             if (mc.thePlayer.onGround && mc.thePlayer.motionY <= 0.0 && PlayerUtil.canMove(mc.thePlayer.motionX, mc.thePlayer.motionZ, -1.0)) {
                 event.setSafeWalk(true);
             }
@@ -856,8 +945,13 @@ public class Scaffold extends Module {
     }
     @EventTarget
     public void onRender(Render2DEvent event) {
+
+
         if (this.isEnabled()) {
-            if (this.blockCounter.getValue()) {
+            boolean counterOn = this.isLeaderLiteMode()
+                    ? this.leaderScaffoldRunner.blockCounter.getValue()
+                    : this.blockCounter.getValue();
+            if (counterOn) {
                 int count = 0;
                 for (int i = 0; i < 9; i++) {
                     ItemStack stack = mc.thePlayer.inventory.getStackInSlot(i);
@@ -894,25 +988,25 @@ public class Scaffold extends Module {
     }
     @EventTarget
     public void onLeftClick(LeftClickMouseEvent event) {
-        if (this.isEnabled()) {
+        if (this.isEnabled() && !this.isLeaderLiteMode()) {
             event.setCancelled(true);
         }
     }
     @EventTarget
     public void onRightClick(RightClickMouseEvent event) {
-        if (this.isEnabled()) {
+        if (this.isEnabled() && !this.isLeaderLiteMode()) {
             event.setCancelled(true);
         }
     }
     @EventTarget
     public void onHitBlock(HitBlockEvent event) {
-        if (this.isEnabled()) {
+        if (this.isEnabled() && !this.isLeaderLiteMode()) {
             event.setCancelled(true);
         }
     }
     @EventTarget
     public void onSwap(SwapItemEvent event) {
-        if (this.isEnabled()) {
+        if (this.isEnabled() && !this.isLeaderLiteMode()) {
             this.lastSlot = event.setSlot(this.lastSlot);
             event.setCancelled(true);
         }
@@ -941,6 +1035,7 @@ public class Scaffold extends Module {
         if (mc.thePlayer != null && this.lastSlot != -1) {
             mc.thePlayer.inventory.currentItem = this.lastSlot;
         }
+        this.syncLeaderScaffold();
     }
     public static class BlockData {
         private final BlockPos blockPos;

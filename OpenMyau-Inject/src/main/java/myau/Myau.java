@@ -296,7 +296,7 @@ public class Myau {
         moduleManager.modules.put(UnInject.class, new UnInject());
         moduleManager.modules.put(KillAura.class, new KillAura());
         moduleManager.modules.put(LeaderStuck.class, new LeaderStuck());
-        moduleManager.modules.put(LeaderScaffold.class, new LeaderScaffold());
+
         moduleManager.modules.put(Stuck.class, new Stuck());
         moduleManager.modules.put(Telly.class, new Telly());
         moduleManager.modules.put(AutoHeadHitter.class, new AutoHeadHitter());
@@ -368,6 +368,19 @@ public class Myau {
             }
             propertyManager.properties.put(module.getClass(), properties);
             EventManager.register(module);
+        }
+
+        Scaffold scaffoldModule = (Scaffold) moduleManager.modules.get(Scaffold.class);
+        if (scaffoldModule != null) {
+
+
+            LeaderScaffold innerScaffold = scaffoldModule.getLeaderScaffoldRunner();
+            if (innerScaffold != null) {
+                scaffoldModule.adoptInternalProperties(innerScaffold);
+            }
+
+
+            scaffoldModule.registerInternalModules();
         }
         EventManager.register(new MovementFix());
         Config config = new Config("default", true);

@@ -48,6 +48,11 @@ public final class Hooks {
     private static void minecraft() {
 
         HookRegistry.hook(MINECRAFT, "runTick", V).at(Position.HEAD).calls("tickPre").add();
+
+
+        HookRegistry.hook("net.minecraft.util.Timer", "updateTimer", V)
+                .at(Position.RETURN).args("this")
+                .calls("timerLimitFrame", "(Ljava/lang/Object;)V").add();
         HookRegistry.hook(MINECRAFT, "runTick", V).at(Position.RETURN).calls("tickPost").add();
         HookRegistry.hook(ITEM_RENDERER, "renderItemInFirstPerson", "(F)V")
                 .at(Position.REPLACE_INVOKE)

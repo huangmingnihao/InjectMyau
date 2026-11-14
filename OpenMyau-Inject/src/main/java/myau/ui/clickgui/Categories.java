@@ -119,7 +119,6 @@ public final class Categories {
                 add(modules, ChestStealer.class);
                 add(modules, InvManager.class);
                 add(modules, Scaffold.class);
-                add(modules, LeaderScaffold.class);
                 add(modules, LeaderStuck.class);
                 add(modules, GodBridge.class);
                 add(modules, BridgeAssist.class);

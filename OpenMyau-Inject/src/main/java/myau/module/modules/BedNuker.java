@@ -27,9 +27,7 @@ import net.minecraft.client.renderer.GlStateManager;
 import net.minecraft.enchantment.Enchantment;
 import net.minecraft.enchantment.EnchantmentHelper;
 import net.minecraft.item.Item;
-import net.minecraft.item.ItemAxe;
 import net.minecraft.item.ItemPickaxe;
-import net.minecraft.item.ItemShears;
 import net.minecraft.item.ItemStack;
 import net.minecraft.network.play.client.C07PacketPlayerDigging;
 import net.minecraft.network.play.client.C07PacketPlayerDigging.Action;
@@ -72,7 +70,6 @@ public class BedNuker extends Module {
     private boolean readyToBreak = false;
     private boolean breaking = false;
     private boolean waitingForStart = false;
-    private boolean keepBedAim = false;
     public final ModeProperty mode = new ModeProperty("mode", 0, new String[]{"LEGIT", "SWAP"});
     public final FloatProperty range = new FloatProperty("range", 4.5F, 3.0F, 6.0F);
     public final PercentProperty speed = new PercentProperty("speed", 0);
@@ -108,10 +105,7 @@ public class BedNuker extends Module {
         } else {
             float progress = this.breakProgress;
             if (this.groundSpeed.getValue()) {
-                int slot = this.getDigSlot(mc.theWorld.getBlockState(this.targetBed).getBlock());
-                if (slot < 0) {
-                    slot = mc.thePlayer.inventory.currentItem;
-                }
+                int slot = ItemUtil.findInventorySlot(mc.thePlayer.inventory.currentItem, mc.theWorld.getBlockState(this.targetBed).getBlock());
                 progress = (float) this.tickCounter * this.getBreakDelta(mc.theWorld.getBlockState(this.targetBed), this.targetBed, slot, true);
             }
             return Math.min(1.0F, progress / (1.0F - 0.3F * ((float) this.speed.getValue().intValue() / 100.0F)));
@@ -131,34 +125,26 @@ public class BedNuker extends Module {
         }
         AccessorPlayerControllerMP.callSyncCurrentPlayItem(mc.playerController);
     }
-    private boolean isAllowedToolSlot(int slot) {
-        if (slot < 0 || slot >= 9) {
+    private boolean hasProperTool(Block block) {
+        Material material = block.getMaterial();
+        if (material != Material.iron && material != Material.anvil && material != Material.rock) {
+            return true;
+        } else {
+            for (int i = 0; i < 9; i++) {
+                ItemStack stack = mc.thePlayer.inventory.getStackInSlot(i);
+                if (stack != null) {
+                    Item item = stack.getItem();
+                    if (item instanceof ItemPickaxe) {
+                        return true;
+                    }
+                }
+            }
             return false;
         }
-        ItemStack stack = mc.thePlayer.inventory.getStackInSlot(slot);
-        if (stack == null) {
-            return true;
-        }
-        Item item = stack.getItem();
-        return item instanceof ItemPickaxe || item instanceof ItemAxe || item instanceof ItemShears;
-    }
-
-    private boolean isAllowedHeldTool() {
-        return this.isAllowedToolSlot(mc.thePlayer.inventory.currentItem);
-    }
-
-    private int getDigSlot(Block block) {
-        int current = mc.thePlayer.inventory.currentItem;
-        int best = ItemUtil.findInventorySlot(current, block);
-        return this.toolCheck.getValue() && !this.isAllowedToolSlot(best) ? current : best;
     }
     private EnumFacing getHitFacing(BlockPos blockPos) {
+
         if (this.noThroughWall.getValue()) {
-            MovingObjectPosition serverHit = this.getServerHit();
-            if (serverHit != null && serverHit.typeOfHit == MovingObjectType.BLOCK
-                    && blockPos.equals(serverHit.getBlockPos())) {
-                return serverHit.sideHit;
-            }
             MovingObjectPosition hit = this.findVisibleHit(blockPos);
             if (hit != null) {
                 return hit.sideHit;
@@ -223,10 +209,7 @@ public class BedNuker extends Module {
 
     private float calcBlockStrength(BlockPos blockPos) {
         IBlockState blockState = mc.theWorld.getBlockState(blockPos);
-        int slot = this.getDigSlot(blockState.getBlock());
-        if (slot < 0) {
-            slot = mc.thePlayer.inventory.currentItem;
-        }
+        int slot = ItemUtil.findInventorySlot(mc.thePlayer.inventory.currentItem, blockState.getBlock());
         return this.getBreakDelta(blockState, blockPos, slot, mc.thePlayer.onGround);
     }
 
@@ -341,14 +324,9 @@ public class BedNuker extends Module {
         return hit != null && hit.typeOfHit == MovingObjectType.BLOCK && pos.equals(hit.getBlockPos());
     }
 
-    private MovingObjectPosition getServerHit() {
-        return RotationUtil.rayTrace(AccessorEntityPlayerSP.getLastReportedYaw(mc.thePlayer),
-                AccessorEntityPlayerSP.getLastReportedPitch(mc.thePlayer), 8.0, 1.0F);
-    }
-
     private boolean isServerAimingAt(BlockPos pos) {
-        MovingObjectPosition hit = this.getServerHit();
-        return hit != null && hit.typeOfHit == MovingObjectType.BLOCK && pos.equals(hit.getBlockPos());
+        return this.isAimingAt(pos, AccessorEntityPlayerSP.getLastReportedYaw(mc.thePlayer),
+                AccessorEntityPlayerSP.getLastReportedPitch(mc.thePlayer));
     }
 
     private int layersFromBed(BlockPos pos, BlockPos bed) {
@@ -369,7 +347,8 @@ public class BedNuker extends Module {
         IBlockState state = mc.theWorld.getBlockState(pos);
         Block block = state.getBlock();
         return PlayerUtil.canReach(pos, this.range.getValue().doubleValue())
-                && block.getBlockHardness(mc.theWorld, pos) >= 0.0F;
+                && block.getBlockHardness(mc.theWorld, pos) >= 0.0F
+                && (!this.toolCheck.getValue() || this.hasProperTool(block));
     }
 
     private double breakTicks(BlockPos pos) {
@@ -417,6 +396,7 @@ public class BedNuker extends Module {
         return this.findTargetBedLegacy(mc.thePlayer.posX, mc.thePlayer.posY + (double) mc.thePlayer.getEyeHeight(), mc.thePlayer.posZ);
     }
 
+
     private BlockPos findTargetBedLegacy(double x, double y, double z) {
         ArrayList<BlockPos> targets = new ArrayList<>();
         int sX = MathHelper.floor_double(x);
@@ -448,6 +428,10 @@ public class BedNuker extends Module {
             if (this.surroundings.getValue()) {
                 BlockPos pos = this.validateBedPlacement(blockPos);
                 if (pos != null) {
+                    Block block = mc.theWorld.getBlockState(pos).getBlock();
+                    if (this.toolCheck.getValue() && !this.hasProperTool(block)) {
+                        continue;
+                    }
                     return pos;
                 }
             }
@@ -457,6 +441,7 @@ public class BedNuker extends Module {
     }
 
     private BedDigPath.Route findTargetBed(double x, double y, double z) {
+
         if (!this.noThroughWall.getValue()) {
             BlockPos legacy = this.findTargetBedLegacy(x, y, z);
             return legacy == null ? null
@@ -534,60 +519,18 @@ public class BedNuker extends Module {
     private boolean attackHeld() {
         return KeyBindUtil.isKeyDown(mc.gameSettings.keyBindAttack.getKeyCode());
     }
-
-    private void finishBreak() {
-        if (this.noThroughWall.getValue() && !this.isBed) {
-            // Keep the current tool while looking for the next defense layer.
-            this.savedSlot = -1;
-        } else {
-            this.restoreSlot();
-        }
-        this.resetBreaking();
-    }
-
-    private void cancelCurrentDig() {
-        if (this.targetBed != null && this.breakStage == 1 && !mc.theWorld.isAirBlock(this.targetBed)) {
-            PacketUtil.sendPacket(new C07PacketPlayerDigging(Action.ABORT_DESTROY_BLOCK,
-                    this.targetBed, this.getHitFacing(this.targetBed)));
-        }
-        if (this.breakStage == 2) {
-            this.finishBreak();
-        } else {
-            this.restoreSlot();
-            this.resetBreaking();
-        }
-        this.keepBedAim = false;
-        Myau.delayManager.setDelayState(false, DelayModules.BED_NUKER);
-    }
-
     @EventTarget(Priority.HIGH)
     public void onTick(TickEvent event) {
         if (this.isEnabled() && event.getType() == EventType.PRE) {
             ProgressBar.tick();
-            if (this.requireClick.getValue() && !this.attackHeld()) {
-                if (this.targetBed != null || this.keepBedAim) {
-                    this.cancelCurrentDig();
-                }
-                return;
-            }
-            if (this.targetBed != null && this.breakStage == 2) {
-                this.finishBreak();
-            }
-            if (this.toolCheck.getValue() && !this.isAllowedHeldTool()) {
-                if (this.targetBed != null || this.keepBedAim) {
-                    this.cancelCurrentDig();
-                }
-                return;
-            }
             if (isBlockingIn()) {
                 return;
             }
-            if (this.targetBed == null && this.keepBedAim && this.timer.hasTimeElapsed(500)) {
-                this.keepBedAim = false;
+            if (this.requireClick.getValue() && !this.attackHeld()) {
+                return;
             }
             if (this.targetBed != null) {
-                if (mc.theWorld.isAirBlock(this.targetBed)
-                        || !PlayerUtil.canReach(this.targetBed, this.range.getValue().doubleValue())) {
+                if (mc.theWorld.isAirBlock(this.targetBed) || !PlayerUtil.canReach(this.targetBed, this.range.getValue().doubleValue())) {
                     this.restoreSlot();
                     this.resetBreaking();
                 } else if (this.noThroughWall.getValue() && !this.canSeeBlock(this.targetBed)) {
@@ -606,6 +549,7 @@ public class BedNuker extends Module {
                                 this.resetBreaking();
                             }
                         } else {
+
                             BlockPos nearestBed = this.findNearestBedLegacy();
                             if (nearestBed != null && mc.theWorld.getBlockState(nearestBed).getBlock() instanceof BlockBed) {
                                 this.resetBreaking();
@@ -614,16 +558,7 @@ public class BedNuker extends Module {
                     }
             }
             if (this.targetBed != null) {
-                int slot = this.getDigSlot(mc.theWorld.getBlockState(this.targetBed).getBlock());
-                if (slot < 0) {
-                    if (this.breakStage == 1) {
-                        PacketUtil.sendPacket(new C07PacketPlayerDigging(Action.ABORT_DESTROY_BLOCK,
-                                this.targetBed, this.getHitFacing(this.targetBed)));
-                    }
-                    this.restoreSlot();
-                    this.resetBreaking();
-                    return;
-                }
+                int slot = ItemUtil.findInventorySlot(mc.thePlayer.inventory.currentItem, mc.theWorld.getBlockState(this.targetBed).getBlock());
                 if (this.mode.getValue() == 0 && this.savedSlot == -1) {
                     this.savedSlot = mc.thePlayer.inventory.currentItem;
                     mc.thePlayer.inventory.currentItem = slot;
@@ -683,11 +618,13 @@ public class BedNuker extends Module {
                             }
                             if (block instanceof BlockBed) {
                                 this.timer.reset();
-                                this.keepBedAim = this.noThroughWall.getValue();
                             }
                             this.breakStage = 2;
                         }
                         break;
+                    case 2:
+                        this.restoreSlot();
+                        this.resetBreaking();
                 }
                 if (this.targetBed != null) {
                     return;
@@ -702,7 +639,6 @@ public class BedNuker extends Module {
                 this.isBed = this.targetBed != null && mc.theWorld.getBlockState(this.targetBed).getBlock() instanceof BlockBed;
                 this.restoreSlot();
                 if (this.targetBed != null) {
-                    this.keepBedAim = false;
                     this.readyToBreak = true;
                 }
             }
@@ -720,18 +656,13 @@ public class BedNuker extends Module {
             if (this.requireClick.getValue() && !this.attackHeld()) {
                 return;
             }
-            if (this.toolCheck.getValue() && !this.isAllowedHeldTool()) {
-                return;
-            }
-            if (this.isReady() || this.noThroughWall.getValue()
-                    && (this.targetBed != null || this.keepBedAim && !this.timer.hasTimeElapsed(500))) {
+            if (this.isReady() || this.noThroughWall.getValue() && this.targetBed != null) {
                 Vec3 point;
                 float[] rotations;
                 if (this.noThroughWall.getValue()) {
                     // The client removes a completed block before the next target is selected.
                     // Keep the last server aim through that transition and through SWAP mining ticks.
-                    MovingObjectPosition hit = this.targetBed == null || this.breakStage == 2
-                            || mc.theWorld.isAirBlock(this.targetBed)
+                    MovingObjectPosition hit = this.breakStage == 2 || mc.theWorld.isAirBlock(this.targetBed)
                             ? null : this.findVisibleHit(this.targetBed);
                     if (hit == null) {
                         rotations = new float[]{event.getYaw(), event.getPitch()};
@@ -844,7 +775,6 @@ public class BedNuker extends Module {
     @EventTarget
     public void onLoadWorld(LoadWorldEvent event) {
         this.waitingForStart = false;
-        this.keepBedAim = false;
     }
     @EventTarget
     public void onPacket(PacketEvent event) {
@@ -930,7 +860,6 @@ public class BedNuker extends Module {
     @Override
     public void onDisabled() {
         ProgressBar.reset();
-        this.keepBedAim = false;
         this.resetBreaking();
         this.savedSlot = -1;
         Myau.delayManager.setDelayState(false, DelayModules.BED_NUKER);

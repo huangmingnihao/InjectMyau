@@ -54,6 +54,20 @@ public final class Callbacks {
     private static boolean lastSynthetic;
     private Callbacks() {
     }
+
+
+
+
+
+    public static void timerLimitFrame(Object timerObj) {
+        try {
+            if (timerObj instanceof net.minecraft.util.Timer) {
+                myau.util.TimerSpeedLease.limitFrame((net.minecraft.util.Timer) timerObj);
+            }
+        } catch (Throwable swallowed) {
+            Log.swallowed(swallowed);
+        }
+    }
     public static void tickPre() {
         try {
 
@@ -63,6 +77,8 @@ public final class Callbacks {
                 return;
             }
             tickSequence++;
+
+            myau.util.TimerSpeedLease.beginTick();
             EventManager.call(new TickEvent(EventType.PRE));
         } catch (Throwable swallowed) {
             Log.swallowed(swallowed);
@@ -227,6 +243,11 @@ public final class Callbacks {
         boolean synthetic = lastSynthetic;
         try {
             if (!Bootstrap.isStarted() || !pressed || synthetic) {
+                return;
+            }
+
+
+            if (key == 0) {
                 return;
             }
             EventManager.call(new KeyEvent(key,
@@ -565,6 +586,7 @@ public final class Callbacks {
                 return;
             }
             EventManager.call(new TickEvent(EventType.POST));
+            myau.util.TimerSpeedLease.endTick();
         } catch (Throwable swallowed) {
             Log.swallowed(swallowed);
         }

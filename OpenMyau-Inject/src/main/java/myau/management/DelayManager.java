@@ -25,6 +25,8 @@ import java.util.concurrent.ConcurrentLinkedDeque;
 public class DelayManager {
     public static Minecraft mc = Minecraft.getMinecraft();
     public DelayModules delayModule = DelayModules.NONE;
+
+    private volatile boolean replaying = false;
     public long delay = 0L;
     public Deque<Packet<INetHandlerPlayClient>> delayedPacket = new ConcurrentLinkedDeque<>();
 
@@ -58,16 +60,26 @@ public class DelayManager {
             if (Minecraft.getMinecraft().getNetHandler() != null && this.delayedPacket.isEmpty()) {
                 return true;
             }
-            while (true) {
-                Packet<INetHandlerPlayClient> packet = this.delayedPacket.poll();
-                if (packet == null) {
-                    this.delayedPacket.clear();
-                    break;
+            this.replaying = true;
+            try {
+                while (true) {
+                    Packet<INetHandlerPlayClient> packet = this.delayedPacket.poll();
+                    if (packet == null) {
+                        this.delayedPacket.clear();
+                        break;
+                    }
+                    packet.processPacket(Minecraft.getMinecraft().getNetHandler());
                 }
-                packet.processPacket(Minecraft.getMinecraft().getNetHandler());
+            } finally {
+                this.replaying = false;
             }
         }
         return this.delayModule != DelayModules.NONE;
+    }
+
+
+    public boolean isReplaying() {
+        return this.replaying;
     }
 
     public DelayModules getDelayModule() {

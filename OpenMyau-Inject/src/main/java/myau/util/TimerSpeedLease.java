@@ -66,13 +66,40 @@ public final class TimerSpeedLease {
 
     public static void endTick() {
         TimerSpeedLease lease = active;
-        if (lease != null
-                && lease.acquiredGeneration == tickGeneration
-                && (--lease.ticksRemaining <= 0 || !lease.isActive())) {
-            lease.release();
+        if (lease == null) {
+            tickGeneration = -1;
+            return;
+        }
+
+        if (lease.acquiredGeneration == tickGeneration) {
+            if (lease.ticksRemaining > 0) {
+                lease.ticksRemaining--;
+            }
+            if (lease.ticksRemaining <= 0 || !lease.isActive()) {
+                lease.release();
+            }
         }
         tickGeneration = -1;
     }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
     public static void limitFrame(Timer timer) {
         TimerSpeedLease lease = active;
@@ -83,6 +110,14 @@ public final class TimerSpeedLease {
             lease.release();
             return;
         }
-        timer.elapsedTicks = Math.min(timer.elapsedTicks, lease.ticksRemaining);
+
+
+        if (lease.speed <= 1.0F) {
+            return;
+        }
+
+
+        int limit = Math.max(1, lease.ticksRemaining);
+        timer.elapsedTicks = Math.min(timer.elapsedTicks, limit);
     }
 }

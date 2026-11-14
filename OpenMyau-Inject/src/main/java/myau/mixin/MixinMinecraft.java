@@ -58,6 +58,9 @@ public abstract class MixinMinecraft {
     )
     private void runTick(CallbackInfo callbackInfo) {
         myau.inject.Bootstrap.tick();
+
+
+        myau.util.TimerSpeedLease.beginTick();
         if (this.theWorld != null && this.thePlayer != null) {
             EventManager.call(new TickEvent(EventType.PRE));
         }
@@ -71,6 +74,7 @@ public abstract class MixinMinecraft {
         if (this.theWorld != null && this.thePlayer != null) {
             EventManager.call(new TickEvent(EventType.POST));
         }
+        myau.util.TimerSpeedLease.endTick();
     }
 
     @Inject(
@@ -78,6 +82,7 @@ public abstract class MixinMinecraft {
             at = {@At("HEAD")}
     )
     private void loadWorld(WorldClient worldClient, String string, CallbackInfo callbackInfo) {
+        myau.util.TimerSpeedLease.cancelActive();
         EventManager.call(new LoadWorldEvent());
     }
 

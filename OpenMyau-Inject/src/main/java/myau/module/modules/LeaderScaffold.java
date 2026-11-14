@@ -4,6 +4,7 @@ import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 
 import myau.Myau;
+import myau.access.AccessorEntity;
 import myau.access.AccessorEntityPlayerSP;
 import myau.event.EventTarget;
 import myau.event.types.EventType;
@@ -75,38 +76,38 @@ public class LeaderScaffold extends Module {
             0.40625, 0.46875, 0.53125, 0.59375, 0.65625, 0.71875,
             0.78125, 0.84375, 0.90625, 0.96875
     };
-    public final ModeProperty mode = new ModeProperty("Mode", 1, new String[]{"Normal", "Telly", "Legit", "LegitTelly"});
-    public final ModeProperty rotationMode = new ModeProperty("Rotate Mode", 3, new String[]{"None", "Vanilla", "Backwards", "Prediction", "Strict", "GodBridge", "Snap", "GodBridgeFix"}, this::usesRotationMode);
-    public final BooleanProperty noUpdateWhenCanPlace = new BooleanProperty("Do Not Update Rotation When Can Place", false, () -> this.isRotationMode(5) || this.isRotationMode(7));
-    public final BooleanProperty edgeLimit = new BooleanProperty("Edge Limit", false, () -> this.isRotationMode(5) || this.isRotationMode(7));
-    public final FloatProperty godBridgeTolerance = new FloatProperty("GodBridge Yaw Tolerance", 5.0F, 0.0F, 10.0F, () -> this.isRotationMode(5) || this.isRotationMode(7));
-    public final ModeProperty moveFix = new ModeProperty("Move Fix", 1, new String[]{"None", "Silent"});
-    public final IntProperty jumpDelay = new IntProperty("Jump Delay", 2, 0, 5, () -> mode.getValue() == 1 || mode.getValue() == 3);
-    public final IntProperty placeDelay = new IntProperty("Place Delay", 1, 0, 5);
-    public final FloatProperty startRotSpeed = new FloatProperty("Start Rotate Speed", 180.0F, 1.0F, 180.0F, () -> mode.getValue() == 1 && !this.isRotationMode(6));
-    public final FloatProperty normalRotSpeed = new FloatProperty("Normal Rotate Speed", 180.0F, 1.0F, 180.0F, () -> mode.getValue() == 1 && !this.isRotationMode(6));
-    public final FloatProperty normalModeSpeed = new FloatProperty("Normal Mode Speed", 180.0F, 1.0F, 180.0F, () -> mode.getValue() == 0 && !this.isRotationMode(6));
-    public final FloatProperty legitModeSpeed = new FloatProperty("Legit Mode Speed", 180.0F, 1.0F, 180.0F, () -> mode.getValue() == 2 && !this.isRotationMode(6));
-    public final BooleanProperty swing = new BooleanProperty("Swing", true);
-    public final BooleanProperty itemSpoof = new BooleanProperty("Item Spoof", false);
-    public final BooleanProperty clutch = new BooleanProperty("Clutch", true);
-    public final BooleanProperty onlyInVoid = new BooleanProperty("Only Void", false, this.clutch::getValue);
-    public final BooleanProperty blockCounter = new BooleanProperty("Block Counter", false);
-    public final BooleanProperty airRescue = new BooleanProperty("Air Rescue", true, () -> !this.isRotationMode(6));
-    public final BooleanProperty strictRaytrace = new BooleanProperty("Strict Raytrace", false, () -> !this.isRotationMode(6));
-    public final BooleanProperty rightClickToSwitchTelly = new BooleanProperty("Right Click To Switch Telly", false);
-    public final BooleanProperty warningLowBlocks = new BooleanProperty("Warning Low Blocks", false);
-    public final IntProperty lowBlocksThreshold = new IntProperty("Low Blocks Threshold", 16, 0, 64, warningLowBlocks::getValue);
-    public final FloatProperty snapRotationSpeed = new FloatProperty("RotationSpeed", 180.0F, 1.0F, 180.0F, () -> this.isRotationMode(6));
-    public final BooleanProperty earlySnap = new BooleanProperty("EarlySnap", true, () -> this.isRotationMode(6));
-    public final BooleanProperty speedLimit = new BooleanProperty("Speed Limit", false, () -> mode.getValue() == 1);
-    public final IntProperty speedLimitTicks = new IntProperty("Speed Limit Ticks", 3, 0, 5, () -> mode.getValue() == 1 && speedLimit.getValue());
-    public final IntProperty forwardRotationTicks = new IntProperty("Forward Rotation Ticks", 1, 1, 5, () -> mode.getValue() == 1 && speedLimit.getValue());
-    public final IntProperty legitSneakDelay = new IntProperty("Legit Sneak Delay", 4, 1, 5, () -> mode.getValue() == 2);
-    public final FloatProperty forwardSpeed = new FloatProperty("ForwardSpeed", 180.0F, 1.0F, 180.0F, () -> mode.getValue() == 3);
-    public final FloatProperty backSpeed = new FloatProperty("BackSpeed", 180.0F, 1.0F, 180.0F, () -> mode.getValue() == 3);
-    public final FloatProperty placeSpeed = new FloatProperty("PlaceSpeed", 180.0F, 1.0F, 180.0F, () -> mode.getValue() == 3);
-    public final IntProperty tellyTicks = new IntProperty("TellyTicks", 3, 1, 6, () -> mode.getValue() == 3);
+    public final ModeProperty mode = new ModeProperty("LL Mode", 1, new String[]{"Normal", "Telly", "Legit", "LegitTelly"}, this::isVisibleToParent);
+    public final ModeProperty rotationMode = new ModeProperty("Rotate Mode", 3, new String[]{"None", "Vanilla", "Backwards", "Prediction", "Strict", "GodBridge", "Snap", "GodBridgeFix"}, () -> this.isVisibleToParent() && this.usesRotationMode());
+    public final BooleanProperty noUpdateWhenCanPlace = new BooleanProperty("Do Not Update Rotation When Can Place", false, () -> this.isVisibleToParent() && (this.isRotationMode(5) || this.isRotationMode(7)));
+    public final BooleanProperty edgeLimit = new BooleanProperty("Edge Limit", false, () -> this.isVisibleToParent() && (this.isRotationMode(5) || this.isRotationMode(7)));
+    public final FloatProperty godBridgeTolerance = new FloatProperty("GodBridge Yaw Tolerance", 5.0F, 0.0F, 10.0F, () -> this.isVisibleToParent() && (this.isRotationMode(5) || this.isRotationMode(7)));
+    public final ModeProperty moveFix = new ModeProperty("LL Move Fix", 1, new String[]{"None", "Silent"}, this::isVisibleToParent);
+    public final IntProperty jumpDelay = new IntProperty("Jump Delay", 2, 0, 5, () -> this.isVisibleToParent() && (mode.getValue() == 1 || mode.getValue() == 3));
+    public final IntProperty placeDelay = new IntProperty("Place Delay", 1, 0, 5, this::isVisibleToParent);
+    public final FloatProperty startRotSpeed = new FloatProperty("Start Rotate Speed", 180.0F, 1.0F, 180.0F, () -> this.isVisibleToParent() && mode.getValue() == 1 && !this.isRotationMode(6));
+    public final FloatProperty normalRotSpeed = new FloatProperty("Normal Rotate Speed", 180.0F, 1.0F, 180.0F, () -> this.isVisibleToParent() && mode.getValue() == 1 && !this.isRotationMode(6));
+    public final FloatProperty normalModeSpeed = new FloatProperty("Normal Mode Speed", 180.0F, 1.0F, 180.0F, () -> this.isVisibleToParent() && mode.getValue() == 0 && !this.isRotationMode(6));
+    public final FloatProperty legitModeSpeed = new FloatProperty("Legit Mode Speed", 180.0F, 1.0F, 180.0F, () -> this.isVisibleToParent() && mode.getValue() == 2 && !this.isRotationMode(6));
+    public final BooleanProperty swing = new BooleanProperty("LL Swing", true, this::isVisibleToParent);
+    public final BooleanProperty itemSpoof = new BooleanProperty("LL Item Spoof", false, this::isVisibleToParent);
+    public final BooleanProperty clutch = new BooleanProperty("Clutch", true, this::isVisibleToParent);
+    public final BooleanProperty onlyInVoid = new BooleanProperty("Only Void", false, () -> this.isVisibleToParent() && this.clutch.getValue());
+    public final BooleanProperty blockCounter = new BooleanProperty("LL Block Counter", false, this::isVisibleToParent);
+    public final BooleanProperty airRescue = new BooleanProperty("Air Rescue", true, () -> this.isVisibleToParent() && !this.isRotationMode(6));
+    public final BooleanProperty strictRaytrace = new BooleanProperty("Strict Raytrace", false, () -> this.isVisibleToParent() && !this.isRotationMode(6));
+    public final BooleanProperty rightClickToSwitchTelly = new BooleanProperty("Right Click To Switch Telly", false, this::isVisibleToParent);
+    public final BooleanProperty warningLowBlocks = new BooleanProperty("Warning Low Blocks", false, this::isVisibleToParent);
+    public final IntProperty lowBlocksThreshold = new IntProperty("Low Blocks Threshold", 16, 0, 64, () -> this.isVisibleToParent() && warningLowBlocks.getValue());
+    public final FloatProperty snapRotationSpeed = new FloatProperty("RotationSpeed", 180.0F, 1.0F, 180.0F, () -> this.isVisibleToParent() && this.isRotationMode(6));
+    public final BooleanProperty earlySnap = new BooleanProperty("EarlySnap", true, () -> this.isVisibleToParent() && this.isRotationMode(6));
+    public final BooleanProperty speedLimit = new BooleanProperty("Speed Limit", false, () -> this.isVisibleToParent() && mode.getValue() == 1);
+    public final IntProperty speedLimitTicks = new IntProperty("Speed Limit Ticks", 3, 0, 5, () -> this.isVisibleToParent() && mode.getValue() == 1 && speedLimit.getValue());
+    public final IntProperty forwardRotationTicks = new IntProperty("Forward Rotation Ticks", 1, 1, 5, () -> this.isVisibleToParent() && mode.getValue() == 1 && speedLimit.getValue());
+    public final IntProperty legitSneakDelay = new IntProperty("Legit Sneak Delay", 4, 1, 5, () -> this.isVisibleToParent() && mode.getValue() == 2);
+    public final FloatProperty forwardSpeed = new FloatProperty("ForwardSpeed", 180.0F, 1.0F, 180.0F, () -> this.isVisibleToParent() && mode.getValue() == 3);
+    public final FloatProperty backSpeed = new FloatProperty("BackSpeed", 180.0F, 1.0F, 180.0F, () -> this.isVisibleToParent() && mode.getValue() == 3);
+    public final FloatProperty placeSpeed = new FloatProperty("PlaceSpeed", 180.0F, 1.0F, 180.0F, () -> this.isVisibleToParent() && mode.getValue() == 3);
+    public final IntProperty tellyTicks = new IntProperty("TellyTicks", 3, 1, 6, () -> this.isVisibleToParent() && mode.getValue() == 3);
 
     private int rotationTick = 0;
     private int lastSlot = -1;
@@ -171,9 +172,24 @@ public class LeaderScaffold extends Module {
         profileMode = mode.getValue();
     }
 
+
+
+
+
+
+
+    public boolean isVisibleToParent() {
+        if (myau.Myau.moduleManager == null) {
+            return true;
+        }
+        Scaffold parent = (Scaffold) myau.Myau.moduleManager.getModule(Scaffold.class);
+        return parent != null && parent.isLeaderLiteMode();
+    }
+
     @Override
     public String[] getSuffix() {
-        return new String[]{mode.getModeString()};
+
+        return new String[]{this.mode.getModeString()};
     }
 
     private boolean shouldStopSprint() {
@@ -503,7 +519,16 @@ public class LeaderScaffold extends Module {
     }
 
     private MovingObjectPosition rayTraceFrom(Vec3 eye, float yaw, float pitch) {
-        Vec3 look = ((IAccessorEntity) mc.thePlayer).callGetVectorForRotation(pitch, yaw);
+
+
+        Vec3 look = myau.access.AccessorEntityRotation.getVectorForRotation(mc.thePlayer, pitch, yaw);
+        if (look == null) {
+
+            float f = MathHelper.cos(-yaw * 0.017453292F - (float) Math.PI);
+            float f1 = MathHelper.sin(-yaw * 0.017453292F - (float) Math.PI);
+            float f2 = -MathHelper.cos(-pitch * 0.017453292F);
+            look = new Vec3((double) (f1 * f2), (double) MathHelper.sin(-pitch * 0.017453292F), (double) (f * f2));
+        }
         double reach = mc.playerController.getBlockReachDistance();
         return mc.theWorld.rayTraceBlocks(eye, eye.addVector(look.xCoord * reach, look.yCoord * reach, look.zCoord * reach));
     }
@@ -928,9 +953,18 @@ public class LeaderScaffold extends Module {
     }
 
     private void clutchReset() {
-        LeaderStuck stuck = Myau.moduleManager == null ? null : (LeaderStuck) Myau.moduleManager.getModule(LeaderStuck.class);
+        LeaderStuck stuck = this.resolveStuck();
         if (this.clutchOwnsStuck && stuck != null) stuck.setEnabled(false);
-        this.clutchActive = false; this.clutchOwnsStuck = false;
+        this.clutchActive = false;
+        this.clutchOwnsStuck = false;
+    }
+
+
+
+    private LeaderStuck resolveStuck() {
+        return Myau.moduleManager == null
+                ? null
+                : (LeaderStuck) Myau.moduleManager.getModule(LeaderStuck.class);
     }
 
     private void updateRightClickTelly() {
@@ -1030,7 +1064,7 @@ public class LeaderScaffold extends Module {
     @Override
     public void verifyValue(String name) {
         if (loadingRotationProfile) return;
-        if ("Mode".equals(name)) {
+        if ("LL Mode".equals(name)) {
             int selectedMode = mode.getValue();
             if (rightClickTellyActive && !changingTellyOverride) {
                 rotationProfiles.put(1, captureRotationProfile());
@@ -1052,7 +1086,7 @@ public class LeaderScaffold extends Module {
             restoreRightClickTelly();
         } else if ("Warning Low Blocks".equals(name) || "Low Blocks Threshold".equals(name)) {
             lowBlocksWarned = false;
-        } else if ("Rotate Mode".equals(name) || "EarlySnap".equals(name) || "Move Fix".equals(name)) {
+        } else if ("Rotate Mode".equals(name) || "EarlySnap".equals(name) || "LL Move Fix".equals(name)) {
             resetSnapRotation();
         }
     }
@@ -1184,7 +1218,7 @@ public class LeaderScaffold extends Module {
             else { this.jumpDelayOverride = -1; this.tellyJumpDelayTimer = 0; }
             this.updateClutch();
             if (this.clutchActive) {
-                LeaderStuck stuck = (LeaderStuck) Myau.moduleManager.getModule(LeaderStuck.class);
+                LeaderStuck stuck = this.resolveStuck();
                 if (stuck != null && !stuck.isStuckActive()) {
                     stuck.setEnabled(true);
                     this.clutchOwnsStuck = stuck.isStuckActive();
@@ -1723,10 +1757,8 @@ public class LeaderScaffold extends Module {
         float y = sr.getScaledHeight() / 2.0F + 16.0F;
 
         if (blockCounter.getValue()) {
-            float cardW = this.blockCounterWidth();
-            float cardX = cx - cardW / 2.0F;
-            float cardY = y;
-            this.renderBlockCounter(cardX, cardY, accent, iconStack);
+
+
         }
     }
 

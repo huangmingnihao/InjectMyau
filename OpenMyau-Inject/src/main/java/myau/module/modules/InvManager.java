@@ -17,9 +17,19 @@ import myau.slinky.inventory.InventoryActions;
 import myau.slinky.inventory.InventorySelection;
 import myau.util.ItemUtil;
 import myau.util.KeyBindUtil;
+import net.minecraft.block.Block;
+import net.minecraft.block.BlockOre;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.inventory.GuiInventory;
 import net.minecraft.entity.player.InventoryPlayer;
+import net.minecraft.init.Items;
+import net.minecraft.item.Item;
+import net.minecraft.item.ItemAppleGold;
+import net.minecraft.item.ItemBlock;
+import net.minecraft.item.ItemBow;
+import net.minecraft.item.ItemEgg;
+import net.minecraft.item.ItemFishingRod;
+import net.minecraft.item.ItemSnowball;
 import net.minecraft.item.ItemStack;
 
 import java.util.ArrayList;
@@ -87,6 +97,20 @@ public class InvManager extends SlinkyModule {
    public final KeyProperty bind9 = new KeyProperty("9-key", KeyProperty.NONE, () -> this.bind_sort.getValue());
 
    public final BooleanProperty drop_trash = new BooleanProperty("drop-trash", false);
+
+   public final BooleanProperty debug_drop = new BooleanProperty("debug-drop", false);
+
+
+
+   public final BooleanProperty keep_ore = new BooleanProperty("keep-ore", true, () -> this.drop_trash.getValue());
+
+   public final BooleanProperty keep_water_bucket = new BooleanProperty("keep-water-bucket", true, () -> this.drop_trash.getValue());
+
+   public final BooleanProperty keep_bow_arrows = new BooleanProperty("keep-bow-arrows", true, () -> this.drop_trash.getValue());
+
+   public final BooleanProperty rod_throwable = new BooleanProperty("rod-throwable", false, () -> this.drop_trash.getValue());
+
+   public final IntProperty throws_amount = new IntProperty("throws-amount", 64, 16, 320, () -> this.drop_trash.getValue());
 
    public final IntProperty blocks = new IntProperty("blocks", 128, 64, 2304, () -> this.drop_trash.getValue());
    public final IntProperty projectiles = new IntProperty("projectiles", 64, 16, 2304, () -> this.drop_trash.getValue());
@@ -162,6 +186,125 @@ public class InvManager extends SlinkyModule {
       return stack != null ? stack.stackSize : 0;
    }
 
+   // ==================================================================
+
+   // ==================================================================
+
+   private boolean isThrowable(ItemStack stack) {
+      if (stack == null) return false;
+      return stack.getItem() instanceof ItemSnowball || stack.getItem() instanceof ItemEgg
+              || (this.rod_throwable.getValue() && stack.getItem() instanceof ItemFishingRod);
+   }
+
+   private boolean isGapple(ItemStack stack) {
+      if (stack == null) return false;
+      return stack.getItem() instanceof ItemAppleGold;
+   }
+
+
+   private boolean isOre(ItemStack stack) {
+      if (stack == null) return false;
+      Item item = stack.getItem();
+      if (item instanceof ItemBlock) {
+         Block block = ((ItemBlock) item).getBlock();
+         if (block instanceof BlockOre) {
+            return true;
+         }
+      }
+      return item == Items.diamond
+              || item == Items.emerald
+              || item == Items.iron_ingot
+              || item == Items.gold_ingot
+              || item == Items.coal
+              || item == Items.quartz
+              || item == Items.redstone;
+   }
+
+   private boolean isWaterBucket(ItemStack stack) {
+      return stack != null && (stack.getItem() == Items.water_bucket || stack.getItem() == Items.bucket);
+   }
+
+   private boolean isBow(ItemStack stack) {
+      return stack != null && stack.getItem() instanceof ItemBow;
+   }
+
+
+   private int findWaterBucketSlot(int preferredSlot, boolean hotbarOnly) {
+      if (preferredSlot >= 0 && preferredSlot <= 8) {
+         if (this.isWaterBucket(mc.thePlayer.inventory.getStackInSlot(preferredSlot))) {
+            return preferredSlot;
+         }
+      }
+      int start = hotbarOnly ? 0 : 9;
+      int end = hotbarOnly ? 9 : 36;
+      for (int i = start; i < end; i++) {
+         if (this.isWaterBucket(mc.thePlayer.inventory.getStackInSlot(i))) {
+            return i;
+         }
+      }
+      return -1;
+   }
+
+   private int findThrowableSlot(int preferredSlot, boolean hotbarOnly) {
+      if (preferredSlot >= 0 && preferredSlot <= 8) {
+         if (this.isThrowable(mc.thePlayer.inventory.getStackInSlot(preferredSlot))) {
+            return preferredSlot;
+         }
+      }
+      int start = hotbarOnly ? 0 : 9;
+      int end = hotbarOnly ? 9 : 36;
+      for (int i = start; i < end; i++) {
+         if (this.isThrowable(mc.thePlayer.inventory.getStackInSlot(i))) {
+            return i;
+         }
+      }
+      return -1;
+   }
+
+   private int findGappleSlot(int preferredSlot, boolean hotbarOnly) {
+      if (preferredSlot >= 0 && preferredSlot <= 8) {
+         if (this.isGapple(mc.thePlayer.inventory.getStackInSlot(preferredSlot))) {
+            return preferredSlot;
+         }
+      }
+      int start = hotbarOnly ? 0 : 9;
+      int end = hotbarOnly ? 9 : 36;
+      for (int i = start; i < end; i++) {
+         if (this.isGapple(mc.thePlayer.inventory.getStackInSlot(i))) {
+            return i;
+         }
+      }
+      return -1;
+   }
+
+   private int findBowSlot(int preferredSlot, boolean hotbarOnly) {
+      if (!this.keep_bow_arrows.getValue()) return -1;
+      if (preferredSlot >= 0 && preferredSlot <= 8) {
+         if (this.isBow(mc.thePlayer.inventory.getStackInSlot(preferredSlot))) {
+            return preferredSlot;
+         }
+      }
+      int start = hotbarOnly ? 0 : 9;
+      int end = hotbarOnly ? 9 : 36;
+      for (int i = start; i < end; i++) {
+         if (this.isBow(mc.thePlayer.inventory.getStackInSlot(i))) {
+            return i;
+         }
+      }
+      return -1;
+   }
+
+   private int getTotalThrowsCount() {
+      int count = 0;
+      for (int i = 0; i < 36; i++) {
+         ItemStack stack = mc.thePlayer.inventory.getStackInSlot(i);
+         if (stack != null && this.isThrowable(stack)) {
+            count += stack.stackSize;
+         }
+      }
+      return count;
+   }
+
    private KeyProperty[] slotKeys() {
       if (this.slotKeys == null) {
          this.slotKeys = new KeyProperty[]{
@@ -223,83 +366,296 @@ public class InvManager extends SlinkyModule {
    }
 
 
-   private int findTrashSlot() {
-      ArrayList<Integer> armorBest = new ArrayList<>(Arrays.asList(-1, -1, -1, -1));
-      ArrayList<Integer> armorAny = new ArrayList<>(Arrays.asList(-1, -1, -1, -1));
-      for (int i = 0; i < 4; i++) {
-         armorBest.set(i, ItemUtil.findArmorInventorySlot(i, true));
-         armorAny.set(i, ItemUtil.findArmorInventorySlot(i, false));
-      }
-      int sword = ItemUtil.findSwordInInventorySlot(0, true);
-      if (sword == -1) {
-         sword = ItemUtil.findSwordInInventorySlot(0, false);
-      }
-      int pickaxe = ItemUtil.findInventorySlot("pickaxe", 0, true);
-      if (pickaxe == -1) {
-         pickaxe = ItemUtil.findInventorySlot("pickaxe", 0, false);
-      }
-      int shovel = ItemUtil.findInventorySlot("shovel", 0, true);
-      if (shovel == -1) {
-         shovel = ItemUtil.findInventorySlot("shovel", 0, false);
-      }
-      int axe = ItemUtil.findInventorySlot("axe", 0, true);
-      if (axe == -1) {
-         axe = ItemUtil.findInventorySlot("axe", 0, false);
-      }
-      int blocks = ItemUtil.findInventorySlot(0, ItemUtil.ItemType.Block);
-      int projectile = ItemUtil.findInventorySlot(0, ItemUtil.ItemType.Projectile);
-      if (projectile == -1) {
-         projectile = ItemUtil.findInventorySlot(0, ItemUtil.ItemType.FishRod);
-      }
-      int goldApple = ItemUtil.findInventorySlot(0, ItemUtil.ItemType.GoldApple);
-      int bow = ItemUtil.findBowInventorySlot(0, true);
-      if (bow == -1) {
-         bow = ItemUtil.findBowInventorySlot(0, false);
-      }
-      int arrow = ItemUtil.findInventorySlot(0, ItemUtil.ItemType.Arrow);
 
-      int blockCount = this.getStackSize(blocks);
-      int projectileCount = this.getStackSize(projectile);
-      int arrowCount = this.getStackSize(arrow);
-      int blockLimit = this.blocks.getValue();
-      int projectileLimit = this.projectiles.getValue();
-      int arrowLimit = this.arrow.getValue();
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+   private static final class KeptSlots {
+
+
+
+
+
+
+
+
+
+
+
+
+      final boolean[] kept = new boolean[40];
+
+      final int[] armorBest = new int[]{-1, -1, -1, -1};
+
+      int sword = -1;
+      int pickaxe = -1;
+      int shovel = -1;
+      int axe = -1;
+      int blocks = -1;
+      int projectile = -1;
+      int goldApple = -1;
+      int bow = -1;
+      int arrow = -1;
+   }
+
+
+
+
+
+
+
+
+
+   private KeptSlots computeKeptSlots() {
+      KeptSlots kept = new KeptSlots();
+
+
+      kept.sword = ItemUtil.findSwordInInventorySlot(0, true);
+      if (kept.sword == -1) {
+         kept.sword = ItemUtil.findSwordInInventorySlot(0, false);
+      }
+      kept.pickaxe = ItemUtil.findInventorySlot("pickaxe", 0, true);
+      if (kept.pickaxe == -1) {
+         kept.pickaxe = ItemUtil.findInventorySlot("pickaxe", 0, false);
+      }
+      kept.shovel = ItemUtil.findInventorySlot("shovel", 0, true);
+      if (kept.shovel == -1) {
+         kept.shovel = ItemUtil.findInventorySlot("shovel", 0, false);
+      }
+      kept.axe = ItemUtil.findInventorySlot("axe", 0, true);
+      if (kept.axe == -1) {
+         kept.axe = ItemUtil.findInventorySlot("axe", 0, false);
+      }
+      kept.blocks = ItemUtil.findInventorySlot(0, ItemUtil.ItemType.Block);
+      kept.projectile = ItemUtil.findInventorySlot(0, ItemUtil.ItemType.Projectile);
+      if (kept.projectile == -1) {
+         kept.projectile = ItemUtil.findInventorySlot(0, ItemUtil.ItemType.FishRod);
+      }
+      kept.goldApple = ItemUtil.findInventorySlot(0, ItemUtil.ItemType.GoldApple);
+      kept.bow = ItemUtil.findBowInventorySlot(0, true);
+      if (kept.bow == -1) {
+         kept.bow = ItemUtil.findBowInventorySlot(0, false);
+      }
+      kept.arrow = ItemUtil.findInventorySlot(0, ItemUtil.ItemType.Arrow);
+
+
+      //
+
+
+
+
+
+
+      for (int i = 0; i < 4; i++) {
+         int best = ItemUtil.findArmorInventorySlot(i, true);
+         if (best == -1) {
+            best = ItemUtil.findArmorInventorySlot(i, false);
+         }
+         kept.armorBest[i] = best;
+         if (best >= 0 && best < 36) {
+            kept.kept[best] = true;
+         }
+      }
+
+      if (kept.sword != -1) kept.kept[kept.sword] = true;
+      if (kept.pickaxe != -1) kept.kept[kept.pickaxe] = true;
+      if (kept.shovel != -1) kept.kept[kept.shovel] = true;
+      if (kept.axe != -1) kept.kept[kept.axe] = true;
+      if (kept.blocks != -1) kept.kept[kept.blocks] = true;
+      if (kept.projectile != -1) kept.kept[kept.projectile] = true;
+      if (kept.goldApple != -1) kept.kept[kept.goldApple] = true;
+      if (kept.bow != -1) kept.kept[kept.bow] = true;
+      if (kept.arrow != -1) kept.kept[kept.arrow] = true;
+
+
+      //
+
+      //
+
+
+
+      //
+
+
+
+
+      boolean fallback = this.flag("sort-hotbar-fallback");
+      InventorySelection.Stack[] main = new InventorySelection.Stack[36];
       for (int i = 0; i < 36; i++) {
-         if (armorBest.contains(i) || armorAny.contains(i)
-                 || sword == i || pickaxe == i || shovel == i || axe == i
-                 || blocks == i || projectile == i || goldApple == i || bow == i || arrow == i) {
+         main[i] = InventorySelection.Stack.of(mc.thePlayer.inventory.getStackInSlot(i));
+      }
+      for (int scan = 0; scan < 9; scan++) {
+         int category = this.choice(Integer.toString(scan + 1));
+         if (category == 0 || main[scan] == null) {
             continue;
          }
-         ItemStack stack = mc.thePlayer.inventory.getStackInSlot(i);
+         int slotScore = InventorySelection.policy(category, main[scan], fallback) * main[scan].count;
+         if (slotScore <= 0) {
+            continue;
+         }
+
+         boolean best = true;
+         for (int i = 0; i < 36; i++) {
+            InventorySelection.Stack s = main[i];
+            if (s == null) {
+               continue;
+            }
+            int score = InventorySelection.policy(category, s, fallback) * s.count;
+            if (Integer.compareUnsigned(slotScore, score) < 0) {
+               best = false;
+               break;
+            }
+         }
+         if (best) {
+            kept.kept[scan] = true;
+         }
+      }
+
+      return kept;
+   }
+
+
+
+
+
+
+
+
+   private String describeKept() {
+      StringBuilder sb = new StringBuilder();
+      for (int i = 0; i < 36; i++) {
+         if (i < this.keptFlags.length && this.keptFlags[i]) {
+            sb.append(i).append(',');
+         }
+      }
+      return sb.length() == 0 ? "none" : sb.toString();
+   }
+
+
+   private final boolean[] keptFlags = new boolean[36];
+
+
+
+
+
+
+
+
+
+
+
+
+
+   private ArrayList<Integer> findTrashSlots() {
+      KeptSlots keep = this.computeKeptSlots();
+      System.arraycopy(keep.kept, 0, this.keptFlags, 0, 36);
+      InventoryPlayer inventory = mc.thePlayer.inventory;
+      ArrayList<Integer> itemsToDrop = new ArrayList<Integer>();
+
+      int blockCount = 0;
+      int blockLimit = this.blocks.getValue();
+      int totalThrows = this.getTotalThrowsCount();
+      int throwsLimit = this.throws_amount.getValue();
+
+
+      //
+
+
+
+
+
+
+      for (int i = 0; i < 9; i++) {
+         if (this.findWaterBucketSlot(i, true) == i) keep.kept[i] = true;
+         if (this.findThrowableSlot(i, true) == i) keep.kept[i] = true;
+         if (this.findGappleSlot(i, true) == i) keep.kept[i] = true;
+         if (this.findBowSlot(i, true) == i) keep.kept[i] = true;
+      }
+      System.arraycopy(keep.kept, 0, this.keptFlags, 0, 36);
+
+
+      if (totalThrows > throwsLimit) {
+         for (int i = 35; i >= 0; i--) {
+            if (keep.kept[i]) continue;
+            ItemStack stack = inventory.getStackInSlot(i);
+            if (stack != null && this.isThrowable(stack)) {
+               itemsToDrop.add(i);
+            }
+         }
+      }
+
+
+      for (int i = 0; i < 36; i++) {
+         if (keep.kept[i] || itemsToDrop.contains(i)) {
+            continue;
+         }
+         ItemStack stack = inventory.getStackInSlot(i);
          if (stack == null) {
             continue;
          }
+
+
+         if (this.keep_bow_arrows.getValue() && this.isBow(stack)) {
+            int bestBow = ItemUtil.findBowInventorySlot(0, true);
+            if (bestBow == -1) {
+               bestBow = ItemUtil.findBowInventorySlot(0, false);
+            }
+            if (bestBow != -1 && i != bestBow) {
+               itemsToDrop.add(i);
+            }
+            continue;
+         }
+
          boolean isBlock = ItemUtil.isBlock(stack);
-         boolean isProjectile = ItemUtil.isProjectile(stack);
-         boolean isArrow = ItemUtil.ItemType.Arrow.contains(stack);
+         boolean isThrowable = this.isThrowable(stack);
+         boolean isGapple = this.isGapple(stack);
+         boolean isOre = this.isOre(stack);
+         boolean isProtectedWater = this.keep_water_bucket.getValue() && this.isWaterBucket(stack);
+         boolean isProtectedBowArrow = this.keep_bow_arrows.getValue()
+                 && ItemUtil.ItemType.Arrow.contains(stack);
+
+         if (!this.keep_ore.getValue() && isOre) {
+
+            itemsToDrop.add(i);
+         } else if (!isThrowable && !isOre && !isGapple && !isProtectedWater && !isProtectedBowArrow
+                 && (ItemUtil.isNotSpecialItem(stack)
+                     || (isBlock && blockCount >= blockLimit))) {
+            itemsToDrop.add(i);
+         }
+
          if (isBlock) {
             blockCount += stack.stackSize;
          }
-         if (isProjectile) {
-            projectileCount += stack.stackSize;
-         }
-         if (isArrow) {
-            arrowCount += stack.stackSize;
-         }
-         if (isBlock ? blockCount > blockLimit
-                 : isProjectile ? projectileCount > projectileLimit
-                 : isArrow ? arrowCount > arrowLimit
-                 : ItemUtil.isNotSpecialItem(stack)) {
-            return i;
-         }
       }
-      return -1;
+
+      return itemsToDrop;
    }
 
    @EventTarget
    public void onTick(TickEvent event) {
       if (!this.isEnabled() || event.getType() != EventType.PRE) {
          return;
+      }
+      boolean inInv = mc.currentScreen instanceof GuiInventory;
+      if (this.debug_drop.getValue() && inInv) {
+         myau.inject.Log.line("[InvMgr] tick phase=" + this.phase
+                 + " scan=" + this.scan
+                 + " timer=" + this.timer
+                 + " sortHotbar=" + this.flag("sort-hotbar")
+                 + " equipArmor=" + this.flag("equip-armor")
+                 + " dropTrash=" + this.flag("drop-trash")
+                 + " bindSort=" + this.flag("bind-sort"));
       }
       if (!(mc.currentScreen instanceof GuiInventory)) {
          this.advance(0);
@@ -313,10 +669,20 @@ public class InvManager extends SlinkyModule {
          this.previousY = grid[1];
       } else if (mc.thePlayer != null && mc.theWorld != null) {
          this.scanBindKeys();
-         if (this.phase == 2) {
 
-            this.processPendingSort();
-            return;
+
+
+
+
+         if (this.phase == 2) {
+            if (this.pendingSort >= 0) {
+               this.processPendingSort();
+               return;
+            }
+
+
+
+            this.phase = 7;
          }
          if (this.timer > 0.0F) {
             this.timer += -1.0F;
@@ -377,18 +743,44 @@ public class InvManager extends SlinkyModule {
             }
 
             if (this.phase == 2) {
-               this.processPendingSort();
+
+               this.phase = 7;
+               return;
+            }
+
+            if (this.phase == 7) {
+
                return;
             }
 
             if (this.phase == 6) {
-
-               int junk = this.findTrashSlot();
-               if (junk == -1) {
+               ArrayList<Integer> junk = this.findTrashSlots();
+               if (this.debug_drop.getValue()) {
+                  int keptCount = 0;
+                  for (boolean b : this.keptFlags) {
+                     if (b) keptCount++;
+                  }
+                  myau.util.ChatUtil.sendFormatted(String.format(
+                          "%sInvMgr&7: drop=%s keptSlots=%d/36 [%s]",
+                          myau.Myau.clientName, junk.toString(), keptCount, this.describeKept()));
+               }
+               if (junk.isEmpty()) {
                   this.advance(2);
                   continue;
                }
-               int junkSlot = this.convertSlotIndex(junk);
+
+
+
+               //
+
+
+
+               //
+
+
+
+               int slot = junk.get(0);
+               int junkSlot = this.convertSlotIndex(slot);
                InventoryActions.click(screen, junkSlot, 1, 4);
                this.delay(junkSlot);
                return;
