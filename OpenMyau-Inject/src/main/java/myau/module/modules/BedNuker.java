@@ -27,7 +27,9 @@ import net.minecraft.client.renderer.GlStateManager;
 import net.minecraft.enchantment.Enchantment;
 import net.minecraft.enchantment.EnchantmentHelper;
 import net.minecraft.item.Item;
+import net.minecraft.item.ItemAxe;
 import net.minecraft.item.ItemPickaxe;
+import net.minecraft.item.ItemShears;
 import net.minecraft.item.ItemStack;
 import net.minecraft.network.play.client.C07PacketPlayerDigging;
 import net.minecraft.network.play.client.C07PacketPlayerDigging.Action;
@@ -67,9 +69,13 @@ public class BedNuker extends Module {
     private float breakProgress = 0.0F;
     private boolean isBed = false;
     private int savedSlot = -1;
+    private int moduleSelectedSlot = -1;
+    private boolean manualSwapPending = false;
+    private boolean manualToolMismatch = false;
     private boolean readyToBreak = false;
     private boolean breaking = false;
     private boolean waitingForStart = false;
+    private boolean keepBedAim = false;
     public final ModeProperty mode = new ModeProperty("mode", 0, new String[]{"LEGIT", "SWAP"});
     public final FloatProperty range = new FloatProperty("range", 4.5F, 3.0F, 6.0F);
     public final PercentProperty speed = new PercentProperty("speed", 0);
@@ -98,6 +104,8 @@ public class BedNuker extends Module {
         this.isBed = false;
         this.readyToBreak = false;
         this.breaking = false;
+        this.manualSwapPending = false;
+        this.manualToolMismatch = false;
     }
     private float calcProgress() {
         if (this.targetBed == null) {
@@ -105,7 +113,7 @@ public class BedNuker extends Module {
         } else {
             float progress = this.breakProgress;
             if (this.groundSpeed.getValue()) {
-                int slot = ItemUtil.findInventorySlot(mc.thePlayer.inventory.currentItem, mc.theWorld.getBlockState(this.targetBed).getBlock());
+                int slot = this.getDigSlot(mc.theWorld.getBlockState(this.targetBed).getBlock());
                 progress = (float) this.tickCounter * this.getBreakDelta(mc.theWorld.getBlockState(this.targetBed), this.targetBed, slot, true);
             }
             return Math.min(1.0F, progress / (1.0F - 0.3F * ((float) this.speed.getValue().intValue() / 100.0F)));
@@ -113,9 +121,13 @@ public class BedNuker extends Module {
     }
     private void restoreSlot() {
         if (this.savedSlot != -1) {
-            mc.thePlayer.inventory.currentItem = this.savedSlot;
-            this.syncHeldItem();
+            if (this.moduleSelectedSlot == -1
+                    || mc.thePlayer.inventory.currentItem == this.moduleSelectedSlot) {
+                mc.thePlayer.inventory.currentItem = this.savedSlot;
+                this.syncHeldItem();
+            }
             this.savedSlot = -1;
+            this.moduleSelectedSlot = -1;
         }
     }
     private void syncHeldItem() {
@@ -124,6 +136,25 @@ public class BedNuker extends Module {
             mc.thePlayer.stopUsingItem();
         }
         AccessorPlayerControllerMP.callSyncCurrentPlayItem(mc.playerController);
+    }
+    private boolean isAllowedToolSlot(int slot) {
+        if (slot < 0 || slot >= 9) {
+            return false;
+        }
+        ItemStack stack = mc.thePlayer.inventory.getStackInSlot(slot);
+        if (stack == null) {
+            return true;
+        }
+        Item item = stack.getItem();
+        return item instanceof ItemPickaxe || item instanceof ItemAxe || item instanceof ItemShears;
+    }
+    private boolean isAllowedHeldTool() {
+        return this.isAllowedToolSlot(mc.thePlayer.inventory.currentItem);
+    }
+    private int getDigSlot(Block block) {
+        int current = mc.thePlayer.inventory.currentItem;
+        int best = ItemUtil.findInventorySlot(current, block);
+        return this.toolCheck.getValue() && !this.isAllowedToolSlot(best) ? current : best;
     }
     private boolean hasProperTool(Block block) {
         Material material = block.getMaterial();
@@ -209,7 +240,7 @@ public class BedNuker extends Module {
 
     private float calcBlockStrength(BlockPos blockPos) {
         IBlockState blockState = mc.theWorld.getBlockState(blockPos);
-        int slot = ItemUtil.findInventorySlot(mc.thePlayer.inventory.currentItem, blockState.getBlock());
+        int slot = this.getDigSlot(blockState.getBlock());
         return this.getBreakDelta(blockState, blockPos, slot, mc.thePlayer.onGround);
     }
 
@@ -519,15 +550,51 @@ public class BedNuker extends Module {
     private boolean attackHeld() {
         return KeyBindUtil.isKeyDown(mc.gameSettings.keyBindAttack.getKeyCode());
     }
+
+    private void finishBreak() {
+        if (this.noThroughWall.getValue() && !this.isBed) {
+            this.savedSlot = -1;
+            this.moduleSelectedSlot = -1;
+        } else {
+            this.restoreSlot();
+        }
+        this.resetBreaking();
+    }
+
+    private void cancelCurrentDig() {
+        if (this.targetBed != null && this.breakStage == 1 && !mc.theWorld.isAirBlock(this.targetBed)) {
+            PacketUtil.sendPacket(new C07PacketPlayerDigging(Action.ABORT_DESTROY_BLOCK,
+                    this.targetBed, this.getHitFacing(this.targetBed)));
+        }
+        this.restoreSlot();
+        this.resetBreaking();
+        this.keepBedAim = false;
+        Myau.delayManager.setDelayState(false, DelayModules.BED_NUKER);
+    }
     @EventTarget(Priority.HIGH)
     public void onTick(TickEvent event) {
         if (this.isEnabled() && event.getType() == EventType.PRE) {
             ProgressBar.tick();
+            if (this.requireClick.getValue() && !this.attackHeld()) {
+                if (this.targetBed != null || this.keepBedAim) {
+                    this.cancelCurrentDig();
+                }
+                return;
+            }
+            if (this.targetBed != null && this.breakStage == 2) {
+                this.finishBreak();
+            }
+            if (this.toolCheck.getValue() && !this.isAllowedHeldTool()) {
+                if (this.targetBed != null || this.keepBedAim) {
+                    this.cancelCurrentDig();
+                }
+                return;
+            }
             if (isBlockingIn()) {
                 return;
             }
-            if (this.requireClick.getValue() && !this.attackHeld()) {
-                return;
+            if (this.targetBed == null && this.keepBedAim && this.timer.hasTimeElapsed(500)) {
+                this.keepBedAim = false;
             }
             if (this.targetBed != null) {
                 if (mc.theWorld.isAirBlock(this.targetBed) || !PlayerUtil.canReach(this.targetBed, this.range.getValue().doubleValue())) {
@@ -558,12 +625,35 @@ public class BedNuker extends Module {
                     }
             }
             if (this.targetBed != null) {
-                int slot = ItemUtil.findInventorySlot(mc.thePlayer.inventory.currentItem, mc.theWorld.getBlockState(this.targetBed).getBlock());
+                Block targetBlock = mc.theWorld.getBlockState(this.targetBed).getBlock();
+                if (this.manualSwapPending) {
+                    this.manualSwapPending = false;
+                    if (this.breakStage == 1 && !mc.theWorld.isAirBlock(this.targetBed)) {
+                        PacketUtil.sendPacket(new C07PacketPlayerDigging(Action.ABORT_DESTROY_BLOCK,
+                                this.targetBed, this.getHitFacing(this.targetBed)));
+                    }
+                    this.breakStage = 0;
+                    this.tickCounter = 0;
+                    this.breakProgress = 0.0F;
+                    this.readyToBreak = true;
+                    this.breaking = false;
+                    this.manualToolMismatch = this.toolCheck.getValue()
+                            && !this.canHarvest(targetBlock, mc.thePlayer.inventory.currentItem);
+                }
+                if (this.manualToolMismatch) {
+                    if (!this.canHarvest(targetBlock, mc.thePlayer.inventory.currentItem)) {
+                        return;
+                    }
+                    this.manualToolMismatch = false;
+                }
+                int slot = this.getDigSlot(targetBlock);
                 if (this.mode.getValue() == 0 && this.savedSlot == -1) {
                     this.savedSlot = mc.thePlayer.inventory.currentItem;
                     mc.thePlayer.inventory.currentItem = slot;
+                    this.moduleSelectedSlot = slot;
                     this.syncHeldItem();
                 }
+                slot = mc.thePlayer.inventory.currentItem;
                 switch (this.breakStage) {
                     case 0:
                         if (!mc.thePlayer.isUsingItem()
@@ -598,10 +688,12 @@ public class BedNuker extends Module {
                                 this.readyToBreak = true;
                                 this.savedSlot = mc.thePlayer.inventory.currentItem;
                                 mc.thePlayer.inventory.currentItem = slot;
+                                this.moduleSelectedSlot = slot;
                                 this.syncHeldItem();
                                 if (mc.thePlayer.isUsingItem()) {
                                     this.savedSlot = mc.thePlayer.inventory.currentItem;
                                     mc.thePlayer.inventory.currentItem = (mc.thePlayer.inventory.currentItem + 1) % 9;
+                                    this.moduleSelectedSlot = mc.thePlayer.inventory.currentItem;
                                     this.syncHeldItem();
                                 }
                             }
@@ -618,13 +710,13 @@ public class BedNuker extends Module {
                             }
                             if (block instanceof BlockBed) {
                                 this.timer.reset();
+                                this.keepBedAim = this.noThroughWall.getValue();
                             }
                             this.breakStage = 2;
                         }
                         break;
                     case 2:
-                        this.restoreSlot();
-                        this.resetBreaking();
+                        this.finishBreak();
                 }
                 if (this.targetBed != null) {
                     return;
@@ -639,6 +731,7 @@ public class BedNuker extends Module {
                 this.isBed = this.targetBed != null && mc.theWorld.getBlockState(this.targetBed).getBlock() instanceof BlockBed;
                 this.restoreSlot();
                 if (this.targetBed != null) {
+                    this.keepBedAim = false;
                     this.readyToBreak = true;
                 }
             }
@@ -656,13 +749,18 @@ public class BedNuker extends Module {
             if (this.requireClick.getValue() && !this.attackHeld()) {
                 return;
             }
-            if (this.isReady() || this.noThroughWall.getValue() && this.targetBed != null) {
+            if (this.toolCheck.getValue() && !this.isAllowedHeldTool()) {
+                return;
+            }
+            if (this.isReady() || this.noThroughWall.getValue()
+                    && (this.targetBed != null || this.keepBedAim && !this.timer.hasTimeElapsed(500))) {
                 Vec3 point;
                 float[] rotations;
                 if (this.noThroughWall.getValue()) {
                     // The client removes a completed block before the next target is selected.
                     // Keep the last server aim through that transition and through SWAP mining ticks.
-                    MovingObjectPosition hit = this.breakStage == 2 || mc.theWorld.isAirBlock(this.targetBed)
+                    MovingObjectPosition hit = this.targetBed == null || this.breakStage == 2
+                            || mc.theWorld.isAirBlock(this.targetBed)
                             ? null : this.findVisibleHit(this.targetBed);
                     if (hit == null) {
                         rotations = new float[]{event.getYaw(), event.getPitch()};
@@ -775,6 +873,7 @@ public class BedNuker extends Module {
     @EventTarget
     public void onLoadWorld(LoadWorldEvent event) {
         this.waitingForStart = false;
+        this.keepBedAim = false;
     }
     @EventTarget
     public void onPacket(PacketEvent event) {
@@ -851,17 +950,17 @@ public class BedNuker extends Module {
     }
     @EventTarget
     public void onSwap(SwapItemEvent event) {
-        if (this.isEnabled()) {
-            if (this.savedSlot != -1) {
-                event.setCancelled(true);
-            }
+        if (this.isEnabled() && this.targetBed != null) {
+            this.manualSwapPending = true;
         }
     }
     @Override
     public void onDisabled() {
         ProgressBar.reset();
+        this.keepBedAim = false;
         this.resetBreaking();
         this.savedSlot = -1;
+        this.moduleSelectedSlot = -1;
         Myau.delayManager.setDelayState(false, DelayModules.BED_NUKER);
     }
 

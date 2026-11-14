@@ -674,15 +674,17 @@ public class InvManager extends SlinkyModule {
 
 
 
-         if (this.phase == 2) {
+         if (this.phase == 2 || this.phase == 7) {
             if (this.pendingSort >= 0) {
                this.processPendingSort();
                return;
             }
+            if (this.phase == 2) {
 
 
 
-            this.phase = 7;
+               this.phase = 7;
+            }
          }
          if (this.timer > 0.0F) {
             this.timer += -1.0F;
