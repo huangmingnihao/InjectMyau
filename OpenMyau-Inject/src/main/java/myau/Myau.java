@@ -377,6 +377,7 @@ public class Myau {
             LeaderScaffold innerScaffold = scaffoldModule.getLeaderScaffoldRunner();
             if (innerScaffold != null) {
                 scaffoldModule.adoptInternalProperties(innerScaffold);
+                scaffoldModule.adoptInternalProperties(scaffoldModule.getSprintScaffoldRunner());
             }
 
 

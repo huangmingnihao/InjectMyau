@@ -173,11 +173,6 @@ public class LeaderScaffold extends Module {
     }
 
 
-
-
-
-
-
     public boolean isVisibleToParent() {
         if (myau.Myau.moduleManager == null) {
             return true;
@@ -188,7 +183,6 @@ public class LeaderScaffold extends Module {
 
     @Override
     public String[] getSuffix() {
-
         return new String[]{this.mode.getModeString()};
     }
 
@@ -519,11 +513,8 @@ public class LeaderScaffold extends Module {
     }
 
     private MovingObjectPosition rayTraceFrom(Vec3 eye, float yaw, float pitch) {
-
-
         Vec3 look = myau.access.AccessorEntityRotation.getVectorForRotation(mc.thePlayer, pitch, yaw);
         if (look == null) {
-
             float f = MathHelper.cos(-yaw * 0.017453292F - (float) Math.PI);
             float f1 = MathHelper.sin(-yaw * 0.017453292F - (float) Math.PI);
             float f2 = -MathHelper.cos(-pitch * 0.017453292F);
@@ -943,6 +934,10 @@ public class LeaderScaffold extends Module {
     }
 
     private void updateClutch() {
+        if (Stuck.isManualActive()) {
+            this.clutchReset();
+            return;
+        }
         if (!this.clutch.getValue() || mc.thePlayer.onGround || this.bbUnC()) {
             this.clutchReset();
             return;
@@ -1757,8 +1752,6 @@ public class LeaderScaffold extends Module {
         float y = sr.getScaledHeight() / 2.0F + 16.0F;
 
         if (blockCounter.getValue()) {
-
-
         }
     }
 

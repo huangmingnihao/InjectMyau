@@ -7,17 +7,6 @@ import net.minecraft.entity.Entity;
 import net.minecraft.util.Vec3;
 
 
-
-
-
-
-
-
-
-
-
-
-
 public final class AccessorEntityRotation {
 
     private static final String OWNER = "net.minecraft.entity.Entity";
@@ -26,8 +15,6 @@ public final class AccessorEntityRotation {
 
     private AccessorEntityRotation() {
     }
-
-
 
 
     public static Vec3 getVectorForRotation(Entity entity, float pitch, float yaw) {

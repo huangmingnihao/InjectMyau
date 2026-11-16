@@ -75,6 +75,7 @@ public class LeaderStuck extends Module {
 
     @Override
     public void setEnabled(boolean enabled) {
+        if (enabled && Stuck.isManualActive()) return;
         if (this.internalToggle) {
             super.setEnabled(enabled);
             return;
@@ -140,6 +141,7 @@ public class LeaderStuck extends Module {
     }
 
     public synchronized boolean freezeForTicks(int ticks, boolean delayKnockback) {
+        if (Stuck.isManualActive()) return false;
         if (!mc.isCallingFromMinecraftThread() || ticks <= 0 || mc.thePlayer == null || mc.theWorld == null
                 || mc.thePlayer.isDead || mc.currentScreen != null || !mc.inGameHasFocus
                 || this.isStuckActive() || WorldTickUtil.getSkipTicks() > 0) {
@@ -163,6 +165,7 @@ public class LeaderStuck extends Module {
 
     private synchronized boolean beginExternalSkipFreeze(
             int ticks, boolean autoRelease, boolean delayKnockback) {
+        if (Stuck.isManualActive()) return false;
         if (!mc.isCallingFromMinecraftThread() || mc.thePlayer == null || mc.theWorld == null
                 || mc.thePlayer.isDead || mc.currentScreen != null || !mc.inGameHasFocus
                 || ticks <= 0) {

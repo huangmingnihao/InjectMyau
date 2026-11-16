@@ -173,7 +173,26 @@ val legitScaffoldCameraRegression by tasks.registering(JavaExec::class) {
     }
 }
 
+val sprintScaffoldRegression by tasks.registering(JavaExec::class) {
+    group = "verification"
+    dependsOn(tasks.testClasses)
+    classpath = sourceSets.test.get().output + sourceSets.test.get().compileClasspath
+    javaLauncher.set(javaToolchains.launcherFor { languageVersion.set(JavaLanguageVersion.of(8)) })
+    mainClass.set("myau.util.SprintScaffoldMathTest")
+}
+
+val stuckRegression by tasks.registering(JavaExec::class) {
+    group = "verification"
+    dependsOn(tasks.testClasses)
+    classpath = files(shadowImpl.filter { it.name.startsWith("asm-") }) +
+        sourceSets.test.get().output + sourceSets.test.get().compileClasspath
+    javaLauncher.set(javaToolchains.launcherFor { languageVersion.set(JavaLanguageVersion.of(8)) })
+    mainClass.set("myau.inject.StuckRegressionTest")
+}
+
 tasks.check {
+    dependsOn(stuckRegression)
+    dependsOn(sprintScaffoldRegression)
     dependsOn(bedDigPathRegression, radarProjectionRegression, renderFrameHookRegression,
         colorPropertyRegression, hudAnimationRegression, legitScaffoldCameraRegression)
 }

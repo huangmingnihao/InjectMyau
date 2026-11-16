@@ -13,6 +13,7 @@ import myau.events.UpdateEvent;
 import myau.management.RotationState;
 import myau.module.modules.AntiDebuff;
 import myau.module.modules.NoSlow;
+import myau.module.modules.LeaderStuck;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.entity.EntityPlayerSP;
 import net.minecraft.potion.Potion;
@@ -69,8 +70,10 @@ public final class LocalPlayerCallbacks {
                 return;
             }
             if (!Float.isNaN(pendingYaw) && !Float.isNaN(pendingPitch)) {
-                AccessorEntityPlayerSP.setLastReportedYaw(player, player.rotationYaw);
-                AccessorEntityPlayerSP.setLastReportedPitch(player, player.rotationPitch);
+                if (!LeaderStuck.isExternalPacketFreezeActive() && !LeaderStuck.isFrozen()) {
+                    AccessorEntityPlayerSP.setLastReportedYaw(player, player.rotationYaw);
+                    AccessorEntityPlayerSP.setLastReportedPitch(player, player.rotationPitch);
+                }
                 player.rotationYaw += MathHelper.wrapAngleTo180_float(
                         pendingYaw - player.rotationYaw);
                 player.rotationPitch = pendingPitch;
