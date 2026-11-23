@@ -51,7 +51,7 @@ public class RotationManager {
     }
 
     public void setRotation(float yaw, float pitch, int priority, boolean force) {
-        if (!SlinkyRotationService.allows(priority)) {
+        if (!SlinkyRotationService.allows(priority) || !myau.slinky.silent.SilentRotationService.allows(priority)) {
 
             return;
         }

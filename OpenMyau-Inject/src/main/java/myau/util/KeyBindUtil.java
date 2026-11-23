@@ -5,6 +5,21 @@ import org.lwjgl.input.Keyboard;
 import org.lwjgl.input.Mouse;
 
 public class KeyBindUtil {
+    /** Temporarily change one binding without injecting a key event or touching aliases. */
+    public static void setPressed(KeyBinding binding, boolean pressed) {
+        if (binding == null) return;
+        try {
+            PressedField.VALUE.setBoolean(binding, pressed);
+        } catch (IllegalAccessException e) {
+            throw new IllegalStateException("Cannot update synthetic key binding", e);
+        }
+    }
+
+    private static final class PressedField {
+        private static final java.lang.reflect.Field VALUE = java.util.Objects.requireNonNull(
+                myau.inject.MappingBridge.field("net.minecraft.client.settings.KeyBinding", "pressed", null),
+                "Missing KeyBinding.pressed mapping");
+    }
 
     public static final int MAX_MOUSE_BUTTONS = 32;
 

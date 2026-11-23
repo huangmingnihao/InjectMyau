@@ -213,13 +213,31 @@ public final class HookTransformer implements ClassFileTransformer {
 
     private int insert(MethodNode target, HookRegistry.Hook hook) {
         boolean readsArguments = hook.position == HookRegistry.Position.HEAD
-                || hook.position == HookRegistry.Position.MODIFY_ARGUMENT;
+                || hook.position == HookRegistry.Position.MODIFY_ARGUMENT
+                || (hook.position == HookRegistry.Position.RETURN && hook.argSpec.equals("this"));
         if (!readsArguments && hook.argSpec.length() > 0) {
             log.offer("REFUSING " + hook.owner + "." + hook.method + " @" + hook.position
-                    + ": only a head hook may read arguments -- see callback()");
+                    + ": argument reads need HEAD/MODIFY_ARGUMENT; RETURN only permits this");
             return 0;
         }
         switch (hook.position) {
+            case FINALLY: {
+                // No argument reads: the catch-all handler intentionally drops locals.
+                List<AbstractInsnNode> exits = returns(target);
+                for (AbstractInsnNode exit : exits) target.instructions.insertBefore(exit, callback(target, hook));
+                LabelNode start = new LabelNode();
+                LabelNode end = new LabelNode();
+                LabelNode handler = new LabelNode();
+                target.instructions.insert(start);
+                target.instructions.add(end);
+                target.instructions.add(handler);
+                target.instructions.add(new FrameNode(Opcodes.F_FULL, 0, new Object[0],
+                        1, new Object[]{"java/lang/Throwable"}));
+                target.instructions.add(callback(target, hook));
+                target.instructions.add(new InsnNode(Opcodes.ATHROW));
+                target.tryCatchBlocks.add(new TryCatchBlockNode(start, end, handler, null));
+                return exits.size() + 1;
+            }
             case HEAD:
                 target.instructions.insert(callback(target, hook));
                 return 1;

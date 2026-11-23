@@ -9,6 +9,8 @@ import org.spongepowered.asm.mixin.gen.Invoker;
 @SideOnly(Side.CLIENT)
 @Mixin({EntityRenderer.class})
 public interface IAccessorEntityRenderer {
+    @Invoker("orientCamera")
+    void callOrientCamera(float partialTicks);
     @Invoker
     void callSetupCameraTransform(float float1, int integer);
 }

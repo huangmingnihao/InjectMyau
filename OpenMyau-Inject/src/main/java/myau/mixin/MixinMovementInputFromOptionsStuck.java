@@ -22,6 +22,8 @@ public abstract class MixinMovementInputFromOptionsStuck extends MovementInput {
             cancellable = true
     )
     private void onStuckMoveInput(CallbackInfo callbackInfo) {
+        myau.inject.SilentAimCallbacks.beginMovement();
+        try {
         this.moveStrafe = 0.0F;
         this.moveForward = 0.0F;
         if (this.gameSettings.keyBindForward.isKeyDown()) {
@@ -51,5 +53,8 @@ public abstract class MixinMovementInputFromOptionsStuck extends MovementInput {
             this.moveForward = (float) ((double) this.moveForward * event.getSneakSlowdown());
         }
         callbackInfo.cancel();
+        } finally {
+            myau.inject.SilentAimCallbacks.endMovement();
+        }
     }
 }

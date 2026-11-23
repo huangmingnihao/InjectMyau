@@ -57,6 +57,7 @@ import myau.module.modules.AutoAnduril;
 import myau.module.modules.AutoClicker;
 import myau.module.modules.AutoHeadHitter;
 import myau.module.modules.PearlFireball;
+import myau.module.modules.Projectiles;
 import myau.module.modules.AutoHeal;
 import myau.module.modules.AutoPot;
 import myau.module.modules.AutoTool;
@@ -332,6 +333,7 @@ public class Myau {
         moduleManager.modules.put(TargetStrafe.class, new TargetStrafe());
         moduleManager.modules.put(Tracers.class, new Tracers());
         moduleManager.modules.put(Trajectories.class, new Trajectories());
+        moduleManager.modules.put(Projectiles.class, new Projectiles());
         moduleManager.modules.put(Velocity.class, new Velocity());
         moduleManager.modules.put(ViewClip.class, new ViewClip());
         moduleManager.modules.put(Wtap.class, new Wtap());
@@ -377,10 +379,10 @@ public class Myau {
             LeaderScaffold innerScaffold = scaffoldModule.getLeaderScaffoldRunner();
             if (innerScaffold != null) {
                 scaffoldModule.adoptInternalProperties(innerScaffold);
-                scaffoldModule.adoptInternalProperties(scaffoldModule.getSprintScaffoldRunner());
             }
 
 
+            scaffoldModule.adoptInternalProperties(scaffoldModule.getSprintScaffoldRunner());
             scaffoldModule.registerInternalModules();
         }
         EventManager.register(new MovementFix());

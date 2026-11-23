@@ -14,6 +14,11 @@ import org.spongepowered.asm.mixin.injection.Redirect;
 @SideOnly(Side.CLIENT)
 @Mixin(value = {GuiIngame.class}, priority = 9999)
 public abstract class MixinGuiIngame {
+    @org.spongepowered.asm.mixin.injection.Inject(method = "renderGameOverlay", at = @At("HEAD"))
+    private void purgeDebuffs(float partialTicks, org.spongepowered.asm.mixin.injection.callback.CallbackInfo ci) {
+        myau.module.modules.AntiDebuff.purge();
+    }
+
     @Redirect(
             method = {"updateTick"},
             at = @At(

@@ -41,7 +41,7 @@ public final class FreeLookCallbacks {
 
 
     private static boolean silentActive() {
-        return SlinkyRotationService.isCameraActive();
+        return SlinkyRotationService.isCameraActive() || myau.slinky.silent.SilentRotationService.storedRotationValid();
     }
 
     /** Runs every rendered frame from EntityRenderer.updateCameraAndRender. */
@@ -56,34 +56,43 @@ public final class FreeLookCallbacks {
         }
     }
 
+    private static float silentYaw() {
+        return myau.slinky.silent.SilentRotationService.storedRotationValid()
+                ? myau.slinky.silent.SilentRotationService.cameraYaw() : SlinkyRotationService.cameraYaw();
+    }
+    private static float silentPitch() {
+        return myau.slinky.silent.SilentRotationService.storedRotationValid()
+                ? myau.slinky.silent.SilentRotationService.cameraPitch() : SlinkyRotationService.cameraPitch();
+    }
+
     // ---- EntityRenderer.orientCamera: camera placement -----------------------
 
     public static float orientYaw(Entity entity) {
         if (active()) {
             return FreeLook.cameraYaw;
         }
-        return silentActive() ? SlinkyRotationService.cameraYaw() : entity.rotationYaw;
+        return silentActive() ? silentYaw() : entity.rotationYaw;
     }
 
     public static float orientPrevYaw(Entity entity) {
         if (active()) {
             return FreeLook.cameraYaw;
         }
-        return silentActive() ? SlinkyRotationService.cameraYaw() : entity.prevRotationYaw;
+        return silentActive() ? silentYaw() : entity.prevRotationYaw;
     }
 
     public static float orientPitch(Entity entity) {
         if (active()) {
             return FreeLook.cameraPitch;
         }
-        return silentActive() ? SlinkyRotationService.cameraPitch() : entity.rotationPitch;
+        return silentActive() ? silentPitch() : entity.rotationPitch;
     }
 
     public static float orientPrevPitch(Entity entity) {
         if (active()) {
             return FreeLook.cameraPitch;
         }
-        return silentActive() ? SlinkyRotationService.cameraPitch() : entity.prevRotationPitch;
+        return silentActive() ? silentPitch() : entity.prevRotationPitch;
     }
 
     // ---- ActiveRenderInfo.updateRenderInfo: view vector ---------------------
@@ -93,7 +102,7 @@ public final class FreeLookCallbacks {
             return FreeLook.cameraYaw;
         }
         return silentActive() && entity instanceof EntityPlayer
-                ? SlinkyRotationService.cameraYaw() : entity.rotationYaw;
+                ? silentYaw() : entity.rotationYaw;
     }
 
     public static float renderInfoPitch(Entity entity) {
@@ -101,7 +110,7 @@ public final class FreeLookCallbacks {
             return FreeLook.cameraPitch;
         }
         return silentActive() && entity instanceof EntityPlayer
-                ? SlinkyRotationService.cameraPitch() : entity.rotationPitch;
+                ? silentPitch() : entity.rotationPitch;
     }
 
     // ---- RenderGlobal.setupTerrain: frustum orientation ---------------------
@@ -111,7 +120,7 @@ public final class FreeLookCallbacks {
             return FreeLook.cameraYaw;
         }
         return silentActive() && entity == Minecraft.getMinecraft().getRenderViewEntity()
-                ? SlinkyRotationService.cameraYaw() : entity.rotationYaw;
+                ? silentYaw() : entity.rotationYaw;
     }
 
     public static float terrainPitch(Entity entity) {
@@ -119,7 +128,7 @@ public final class FreeLookCallbacks {
             return FreeLook.cameraPitch;
         }
         return silentActive() && entity == Minecraft.getMinecraft().getRenderViewEntity()
-                ? SlinkyRotationService.cameraPitch() : entity.rotationPitch;
+                ? silentPitch() : entity.rotationPitch;
     }
 
     public static Vector3f terrainViewVector(RenderGlobal renderGlobal,
@@ -130,8 +139,8 @@ public final class FreeLookCallbacks {
             pitch = FreeLook.cameraPitch;
             yaw = FreeLook.cameraYaw;
         } else if (entityIn == Minecraft.getMinecraft().getRenderViewEntity() && silentActive()) {
-            pitch = SlinkyRotationService.cameraPitch();
-            yaw = SlinkyRotationService.cameraYaw();
+            pitch = silentPitch();
+            yaw = silentYaw();
         } else {
             pitch = (float) ((double) entityIn.prevRotationPitch
                     + (double) (entityIn.rotationPitch - entityIn.prevRotationPitch) * partialTicks);
@@ -153,13 +162,13 @@ public final class FreeLookCallbacks {
     public static void setPlayerViewX(RenderManager renderManager, float value) {
         AccessorRenderManager.setPlayerViewX(renderManager,
                 active() ? FreeLook.cameraPitch
-                        : silentActive() ? SlinkyRotationService.cameraPitch() : value);
+                        : silentActive() ? silentPitch() : value);
     }
 
     public static void setPlayerViewY(RenderManager renderManager, float value) {
         AccessorRenderManager.setPlayerViewY(renderManager,
                 active() ? FreeLook.cameraYaw
-                        : silentActive() ? SlinkyRotationService.cameraYaw() : value);
+                        : silentActive() ? silentYaw() : value);
     }
 
     // ---- EntityRenderer.updateCameraAndRender: mouse handling --------------
@@ -194,6 +203,7 @@ public final class FreeLookCallbacks {
                 }
                 return false;
             }
+            if (myau.slinky.silent.SilentRotationService.storedRotationValid()) return true;
             if (silentActive()) {
 
                 MouseHelper helper = AccessorMinecraft.getMouseHelper(mc);

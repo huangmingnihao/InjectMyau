@@ -90,9 +90,11 @@ public final class Callbacks {
 
     public static void render2DPre(float partialTicks) {
         overlayPartialTicks = partialTicks;
+        myau.module.modules.AntiDebuff.purge();
     }
     public static void renderFramePre(float partialTicks) {
         framePartialTicks = partialTicks;
+        myau.module.modules.AntiDebuff.purge();
     }
     public static void renderFramePost() {
         try {

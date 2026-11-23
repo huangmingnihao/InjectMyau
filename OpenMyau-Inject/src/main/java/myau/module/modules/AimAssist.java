@@ -49,6 +49,7 @@ public class AimAssist extends SlinkyModule {
    public final ModeProperty mode = new ModeProperty("mode", MODE_LOCK_ON, new String[]{"Lock-on", "Silent", "Normal"});
    public final BooleanProperty lock_on_vertical = new BooleanProperty("lock-on-vertical", false, () -> this.mode.getValue() == MODE_LOCK_ON);
    public final BooleanProperty silent_ignore_manual_aim = new BooleanProperty("silent-ignore-manual-aim", false, () -> this.mode.getValue() == MODE_SILENT);
+   public final BooleanProperty silent_move_correct = new BooleanProperty("silent-move-correct", true, () -> this.mode.getValue() == MODE_SILENT);
    public final FloatProperty hor_speed = new FloatProperty("horizontal-speed", 15.0F, 0.0F, 30.0F, 0.1F, () -> this.mode.getValue() == MODE_SILENT);
    public final FloatProperty ver_speed = new FloatProperty("vertical-speed", 0.0F, 0.0F, 30.0F, 0.1F, () -> this.mode.getValue() == MODE_SILENT);
    public final PercentProperty predict = new PercentProperty("predict", 0, () -> this.mode.getValue() != MODE_NORMAL);
@@ -96,6 +97,22 @@ public class AimAssist extends SlinkyModule {
    private long tieCounter;
 
    private double previousDisplaySeconds;
+   private final myau.slinky.silent.SilentAimAssist sourceSilent = new myau.slinky.silent.SilentAimAssist(this);
+
+   public boolean usesSourceSilent() { return isEnabled() && mode.getValue() == MODE_SILENT; }
+   public myau.slinky.silent.SilentAimAssist sourceSilent() { return sourceSilent; }
+
+   @Override
+   public void verifyValue(String name) {
+      if (name.equals("mode")) {
+         myau.inject.SilentAimCallbacks.stop(true);
+         sourceSilent.reset();
+         exitSilent();
+         clearTarget();
+         SlinkyRotationService.reset();
+         previousDisplaySeconds = 0;
+      }
+   }
 
    public AimAssist() {
       super("Aim Assist");
@@ -114,6 +131,8 @@ public class AimAssist extends SlinkyModule {
 
    @Override
    public void onDisabled() {
+      myau.inject.SilentAimCallbacks.stop(true);
+      sourceSilent.reset();
       this.exitSilent();
       this.clearTarget();
       SlinkyRotationService.reset();
@@ -121,6 +140,8 @@ public class AimAssist extends SlinkyModule {
 
    @EventTarget
    public void onLoadWorld(LoadWorldEvent event) {
+      myau.inject.SilentAimCallbacks.stop(false);
+      sourceSilent.reset();
       this.silent = false;
       this.clearTarget();
       this.previousDisplaySeconds = 0.0;
@@ -137,10 +158,12 @@ public class AimAssist extends SlinkyModule {
    }
 
    public EntityPlayer currentTarget() {
+      if (usesSourceSilent()) return sourceSilent.currentTarget();
       return this.target;
    }
 
    public boolean targetActive() {
+      if (usesSourceSilent()) return sourceSilent.targetActive();
       return this.targetActive;
    }
 
@@ -168,6 +191,7 @@ public class AimAssist extends SlinkyModule {
       if (!this.isEnabled() || mc.thePlayer == null || mc.theWorld == null) {
          return;
       }
+      if (usesSourceSilent()) return;
       if (this.choice("mode") == MODE_NORMAL) {
 
          return;
@@ -282,6 +306,7 @@ public class AimAssist extends SlinkyModule {
 
    @EventTarget
    public void onUpdate(UpdateEvent event) {
+      if (usesSourceSilent()) return;
       if (!this.isEnabled() || event.getType() != EventType.PRE) {
          return;
       }
@@ -302,6 +327,7 @@ public class AimAssist extends SlinkyModule {
       if (!this.isEnabled()) {
          return;
       }
+      if (usesSourceSilent()) return;
       if (event.getType() == EventType.PRE) {
          if (mc.thePlayer != null && mc.theWorld != null) {
             SlinkyRotationService.beginFrame(mc.gameSettings.mouseSensitivity);

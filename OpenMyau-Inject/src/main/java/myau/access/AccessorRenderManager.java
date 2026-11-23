@@ -50,6 +50,22 @@ public final class AccessorRenderManager {
             Access.report(OWNER, "playerViewX", t);
         }
     }
+    public static float getPlayerViewX(RenderManager owner) {
+        try {
+            return F_PLAYERVIEWX.getFloat(owner);
+        } catch (Throwable t) {
+            Access.report(OWNER, "playerViewX", t);
+            return 0.0F;
+        }
+    }
+    public static float getPlayerViewY(RenderManager owner) {
+        try {
+            return F_PLAYERVIEWY.getFloat(owner);
+        } catch (Throwable t) {
+            Access.report(OWNER, "playerViewY", t);
+            return 0.0F;
+        }
+    }
     public static void setPlayerViewY(RenderManager owner, float value) {
         try {
             F_PLAYERVIEWY.setFloat(owner, value);

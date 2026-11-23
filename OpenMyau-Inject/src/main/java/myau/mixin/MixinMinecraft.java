@@ -25,6 +25,14 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 @SideOnly(Side.CLIENT)
 @Mixin(value = {Minecraft.class}, priority = 9999)
 public abstract class MixinMinecraft {
+    @Inject(method = "updateDisplay", at = @At(value = "INVOKE", target = "Lorg/lwjgl/opengl/Display;update()V", remap = false))
+    private void silentAimBeforeDisplay(CallbackInfo ci) { myau.inject.SilentAimCallbacks.beforeDisplay(); }
+
+    @Redirect(method = "runGameLoop", at = @At(value = "INVOKE", target = "Lnet/minecraft/client/renderer/EntityRenderer;updateCameraAndRender(FJ)V"))
+    private void silentAimRenderScope(net.minecraft.client.renderer.EntityRenderer renderer, float partialTicks, long deadline) {
+        try { renderer.updateCameraAndRender(partialTicks, deadline); }
+        finally { myau.inject.SilentAimCallbacks.endRender(); }
+    }
     @Shadow
     private int leftClickCounter;
     @Shadow

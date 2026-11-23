@@ -21,6 +21,10 @@ import org.spongepowered.asm.mixin.injection.Redirect;
 @SideOnly(Side.CLIENT)
 @Mixin(value = {World.class}, priority = 9999)
 public abstract class MixinWorld implements ISkipTickWorld {
+    @org.spongepowered.asm.mixin.injection.Inject(method = "updateEntities", at = @At("RETURN"))
+    private void silentAimAfterEntities(org.spongepowered.asm.mixin.injection.callback.CallbackInfo ci) {
+        myau.inject.SilentAimCallbacks.afterEntities(this);
+    }
     @org.spongepowered.asm.mixin.Unique
     private int leader$skipTicks;
 

@@ -2,6 +2,13 @@ package myau.module.modules;
 
 import myau.enums.ChatColors;
 import myau.event.EventTarget;
+import myau.events.Render3DEvent;
+import myau.events.Render2DFrameEvent;
+import myau.events.LoadWorldEvent;
+import myau.events.PacketEvent;
+import myau.event.types.EventType;
+import myau.property.properties.ModeProperty;
+import net.minecraft.network.play.client.C08PacketPlayerBlockPlacement;
 import myau.events.Render2DEvent;
 import myau.module.Module;
 import myau.util.RenderUtil;
@@ -27,14 +34,28 @@ import java.util.stream.Collectors;
 
 public class Indicators extends Module {
     private static final Minecraft mc = Minecraft.getMinecraft();
-    public final FloatProperty scale = new FloatProperty("scale", 1.0f, 0.5f, 1.5f);
-    public final FloatProperty offset = new FloatProperty("offset", 50.0f, 0.0f, 255.0f);
-    public final BooleanProperty directionCheck = new BooleanProperty("direction-check", true);
-    public final BooleanProperty fireballs = new BooleanProperty("fireballs", true);
-    public final BooleanProperty pearls = new BooleanProperty("pearls", true);
-    public final BooleanProperty arrows = new BooleanProperty("arrows", true);
-    public final BooleanProperty egg = new BooleanProperty("egg", true);
-    public final BooleanProperty snowball = new BooleanProperty("snowball", true);
+    public final ModeProperty mode = new ModeProperty("mode", 0, new String[]{"Myau", "Vape"});
+    public final BooleanProperty vapeRenderArrows = new BooleanProperty("vape-render-arrows", true, () -> mode.getValue() == 1);
+    public final BooleanProperty vapeRenderEnderPearls = new BooleanProperty("vape-render-ender-pearls", true, () -> mode.getValue() == 1);
+    public final BooleanProperty vapeRenderFireballs = new BooleanProperty("vape-render-fireballs", true, () -> mode.getValue() == 1);
+    public final BooleanProperty vapeRenderEggs = new BooleanProperty("vape-render-eggs", false, () -> mode.getValue() == 1);
+    public final BooleanProperty vapeRenderSnowballs = new BooleanProperty("vape-render-snowballs", false, () -> mode.getValue() == 1);
+    public final BooleanProperty vapeRenderPotions = new BooleanProperty("vape-render-potions", true, () -> mode.getValue() == 1);
+    public final BooleanProperty vapeItemColors = new BooleanProperty("vape-item-colors", true, () -> mode.getValue() == 1);
+    public final BooleanProperty vapeRenderItem = new BooleanProperty("vape-render-item", true, () -> mode.getValue() == 1);
+    public final BooleanProperty vapeRenderOnlyThreats = new BooleanProperty("vape-render-only-threats", false, () -> mode.getValue() == 1);
+    public final BooleanProperty vapeShowDistance = new BooleanProperty("vape-show-distance", true, () -> mode.getValue() == 1);
+    public final ModeProperty vapeArrow = new ModeProperty("vape-arrow", 0, new String[]{"Caret", "Greater_than", "Triangle"}, () -> mode.getValue() == 1);
+    public final FloatProperty vapeCircleRadius = new FloatProperty("vape-circle-radius", 50.0f, 30.0f, 200.0f, 5.0f, () -> mode.getValue() == 1);
+    private final VapeIndicators vape = new VapeIndicators(this);
+    public final FloatProperty scale = new FloatProperty("scale", 1.0f, 0.5f, 1.5f, () -> mode.getValue() == 0);
+    public final FloatProperty offset = new FloatProperty("offset", 50.0f, 0.0f, 255.0f, () -> mode.getValue() == 0);
+    public final BooleanProperty directionCheck = new BooleanProperty("direction-check", true, () -> mode.getValue() == 0);
+    public final BooleanProperty fireballs = new BooleanProperty("fireballs", true, () -> mode.getValue() == 0);
+    public final BooleanProperty pearls = new BooleanProperty("pearls", true, () -> mode.getValue() == 0);
+    public final BooleanProperty arrows = new BooleanProperty("arrows", true, () -> mode.getValue() == 0);
+    public final BooleanProperty egg = new BooleanProperty("egg", true, () -> mode.getValue() == 0);
+    public final BooleanProperty snowball = new BooleanProperty("snowball", true, () -> mode.getValue() == 0);
 
     private boolean shouldRender(Entity entity) {
         double d = (entity.posX - entity.lastTickPosX) * (Indicators.mc.thePlayer.posX - entity.posX) + (entity.posY - entity.lastTickPosY) * (Indicators.mc.thePlayer.posY + (double) Indicators.mc.thePlayer.getEyeHeight() - entity.posY - (double) entity.height / 2.0) + (entity.posZ - entity.lastTickPosZ) * (Indicators.mc.thePlayer.posZ - entity.posZ);
@@ -95,6 +116,7 @@ public class Indicators extends Module {
         if (!this.isEnabled()) {
             return;
         }
+        if (mode.getValue() == 1) return;
         for (Entity entity : TeamUtil.getLoadedEntitiesSorted().stream().filter(this::shouldRender).collect(Collectors.toList())) {
             float offset = 10.0f + this.offset.getValue();
             float yawBetween = RotationUtil.getYawBetween(RenderUtil.lerpDouble(Indicators.mc.thePlayer.posX, Indicators.mc.thePlayer.prevPosX, render2DEvent.getPartialTicks()), RenderUtil.lerpDouble(Indicators.mc.thePlayer.posZ, Indicators.mc.thePlayer.prevPosZ, render2DEvent.getPartialTicks()), RenderUtil.lerpDouble(entity.posX, entity.prevPosX, render2DEvent.getPartialTicks()), RenderUtil.lerpDouble(entity.posZ, entity.prevPosZ, render2DEvent.getPartialTicks()));
@@ -126,4 +148,31 @@ public class Indicators extends Module {
             GlStateManager.popMatrix();
         }
     }
+    @EventTarget
+    public void captureVape(Render3DEvent event) {
+        if (isEnabled() && mode.getValue() == 1) vape.capture(event.getPartialTicks());
+    }
+
+    @EventTarget
+    public void renderVape(Render2DFrameEvent event) {
+        if (isEnabled() && mode.getValue() == 1 && mc.thePlayer != null && mc.theWorld != null
+                && !mc.gameSettings.hideGUI && !mc.skipRenderWorld && mc.currentScreen == null) vape.render();
+    }
+
+    @EventTarget
+    public void trackVapeUse(PacketEvent event) {
+        if (isEnabled() && mode.getValue() == 1 && event.getType() == EventType.SEND
+                && !event.isCancelled() && event.getPacket() instanceof C08PacketPlayerBlockPlacement) {
+            vape.used((C08PacketPlayerBlockPlacement) event.getPacket());
+        }
+    }
+
+    @EventTarget
+    public void onWorld(LoadWorldEvent event) { vape.reset(); }
+
+    @Override
+    public void onDisabled() { vape.reset(); }
+
+    @Override
+    public void verifyValue(String name) { if (name.equals("mode")) vape.reset(); }
 }

@@ -9,6 +9,7 @@ public final class HookRegistry {
     public enum Position {
         HEAD,
         RETURN,
+        FINALLY,
         BEFORE_INVOKE,
         AFTER_INVOKE,
         REPLACE_INVOKE,

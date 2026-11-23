@@ -1,6 +1,8 @@
 package myau.module.modules;
 
 import myau.event.EventTarget;
+import myau.events.LoadWorldEvent;
+import myau.property.properties.ModeProperty;
 import myau.events.Render3DEvent;
 import myau.access.AccessorRenderManager;
 import myau.module.Module;
@@ -24,10 +26,24 @@ import java.util.ArrayList;
 
 public class Trajectories extends Module {
     private static final Minecraft mc = Minecraft.getMinecraft();
-    public final PercentProperty opacity = new PercentProperty("opacity", 100);
-    public final BooleanProperty bow = new BooleanProperty("bow", true);
-    public final BooleanProperty projectiles = new BooleanProperty("projectiles", false);
-    public final BooleanProperty pearls = new BooleanProperty("pearls", true);
+    public final ModeProperty mode = new ModeProperty("mode", 0, new String[]{"Myau", "Vape"});
+    public final BooleanProperty vapeAutoScaleTarget = new BooleanProperty("vape-auto-scale-target", true, () -> mode.getValue() == 1);
+    public final BooleanProperty vapeDisableUnchargedBow = new BooleanProperty("vape-disable-uncharged-bow", true, () -> mode.getValue() == 1);
+    public final BooleanProperty vapeHighlightOnEntity = new BooleanProperty("vape-highlight-on-entity", true, () -> mode.getValue() == 1);
+    public final BooleanProperty vapeDrawBlockOutline = new BooleanProperty("vape-draw-block-outline", true, () -> mode.getValue() == 1);
+    public final BooleanProperty vapeShortenLine = new BooleanProperty("vape-shorten-line", false, () -> mode.getValue() == 1);
+    public final BooleanProperty vapeBow = new BooleanProperty("vape-bow", true, () -> mode.getValue() == 1);
+    public final BooleanProperty vapeEgg = new BooleanProperty("vape-egg", true, () -> mode.getValue() == 1);
+    public final BooleanProperty vapeEnderPearl = new BooleanProperty("vape-ender-pearl", true, () -> mode.getValue() == 1);
+    public final BooleanProperty vapeEnderPearlThrown = new BooleanProperty("vape-ender-pearl-thrown", true, () -> mode.getValue() == 1);
+    public final BooleanProperty vapeFireballEnemy = new BooleanProperty("vape-fireball-enemy", true, () -> mode.getValue() == 1);
+    public final BooleanProperty vapeFireballThrown = new BooleanProperty("vape-fireball-thrown", true, () -> mode.getValue() == 1);
+    public final BooleanProperty vapeSnowball = new BooleanProperty("vape-snowball", true, () -> mode.getValue() == 1);
+    private final VapeTrajectories vape = new VapeTrajectories(this);
+    public final PercentProperty opacity = new PercentProperty("opacity", 100, () -> mode.getValue() == 0);
+    public final BooleanProperty bow = new BooleanProperty("bow", true, () -> mode.getValue() == 0);
+    public final BooleanProperty projectiles = new BooleanProperty("projectiles", false, () -> mode.getValue() == 0);
+    public final BooleanProperty pearls = new BooleanProperty("pearls", true, () -> mode.getValue() == 0);
 
     public Trajectories() {
         super("Trajectories", false, true);
@@ -35,6 +51,10 @@ public class Trajectories extends Module {
 
     @EventTarget
     public void onRender3D(Render3DEvent event) {
+        if (isEnabled() && mode.getValue() == 1) {
+            vape.render(event.getPartialTicks());
+            return;
+        }
         if (this.isEnabled() && mc.thePlayer.getHeldItem() != null && mc.gameSettings.thirdPersonView == 0) {
             Item item = mc.thePlayer.getHeldItem().getItem();
             RenderManager renderManager = mc.getRenderManager();
@@ -205,4 +225,12 @@ public class Trajectories extends Module {
             }
         }
     }
+    @EventTarget
+    public void onWorld(LoadWorldEvent event) { vape.reset(); }
+
+    @Override
+    public void onDisabled() { vape.reset(); }
+
+    @Override
+    public void verifyValue(String name) { if (name.equals("mode")) vape.reset(); }
 }

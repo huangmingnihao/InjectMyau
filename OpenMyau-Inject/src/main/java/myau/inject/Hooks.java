@@ -44,6 +44,32 @@ public final class Hooks {
         camera();
         controller();
         stuck();
+        silentAim();
+    }
+
+    private static void silentAim() {
+        String aim = SilentAimCallbacks.OWNER;
+        HookRegistry.hook(MINECRAFT, "updateDisplay", V).in(aim)
+                .at(Position.BEFORE_INVOKE).invokingUnmapped("org.lwjgl.opengl.Display", "update", V)
+                .calls("beforeDisplay").add();
+        HookRegistry.hook(ENTITY_RENDERER, "getMouseOver", "(F)V").in(aim)
+                .at(Position.HEAD).calls("beforeRay").add();
+        HookRegistry.hook(WORLD, "updateEntities", V).in(aim)
+                .at(Position.RETURN).args("this").calls("afterEntities", "(Ljava/lang/Object;)V").add();
+        HookRegistry.hook(ENTITY_RENDERER, "updateCameraAndRender", "(FJ)V").in(aim)
+                .at(Position.HEAD).calls("prepareMouse").add();
+        HookRegistry.hook(ENTITY_RENDERER, "orientCamera", "(F)V").in(aim)
+                .at(Position.HEAD).calls("beginCamera").add();
+        HookRegistry.hook(ENTITY_RENDERER, "orientCamera", "(F)V").in(aim)
+                .at(Position.FINALLY).calls("endCamera").add();
+        String info = "net.minecraft.client.renderer.ActiveRenderInfo";
+        String infoDesc = "(Lnet/minecraft/entity/player/EntityPlayer;Z)V";
+        HookRegistry.hook(info, "updateRenderInfo", infoDesc).in(aim)
+                .at(Position.HEAD).calls("beginRenderInfo").add();
+        HookRegistry.hook(info, "updateRenderInfo", infoDesc).in(aim)
+                .at(Position.FINALLY).calls("endRenderInfo").add();
+        HookRegistry.hook(ENTITY_RENDERER, "updateCameraAndRender", "(FJ)V").in(aim)
+                .at(Position.FINALLY).calls("endRender").add();
     }
     private static void minecraft() {
 

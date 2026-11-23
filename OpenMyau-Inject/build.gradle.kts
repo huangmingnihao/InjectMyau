@@ -190,7 +190,27 @@ val stuckRegression by tasks.registering(JavaExec::class) {
     mainClass.set("myau.inject.StuckRegressionTest")
 }
 
+val vapePortConfigRegression by tasks.registering(JavaExec::class) {
+    group = "verification"
+    description = "Checks legacy module configs and Vape mode persistence/isolation."
+    dependsOn(tasks.testClasses)
+    classpath = sourceSets.test.get().output + sourceSets.test.get().compileClasspath
+    javaLauncher.set(javaToolchains.launcherFor { languageVersion.set(JavaLanguageVersion.of(8)) })
+    mainClass.set("myau.property.VapePortConfigTest")
+}
+
+val silentAimRegression by tasks.registering(JavaExec::class) {
+    group = "verification"
+    dependsOn(tasks.testClasses)
+    classpath = files(shadowImpl.filter { it.name.startsWith("asm-") }) +
+        sourceSets.test.get().output + sourceSets.test.get().compileClasspath
+    javaLauncher.set(javaToolchains.launcherFor { languageVersion.set(JavaLanguageVersion.of(8)) })
+    mainClass.set("myau.slinky.silent.SilentAimRegressionTest")
+}
+
 tasks.check {
+    dependsOn(silentAimRegression)
+    dependsOn(vapePortConfigRegression)
     dependsOn(stuckRegression)
     dependsOn(sprintScaffoldRegression)
     dependsOn(bedDigPathRegression, radarProjectionRegression, renderFrameHookRegression,

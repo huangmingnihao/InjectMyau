@@ -51,6 +51,7 @@ public final class StuckCallbacks {
     }
     public static void updatePlayerMoveState(Object self) {
         try {
+            SilentAimCallbacks.beginMovement();
             MovementInput input = (MovementInput) self;
             GameSettingsBridge.read(input);
             StuckMoveInputEvent event = new StuckMoveInputEvent(
@@ -73,6 +74,8 @@ public final class StuckCallbacks {
             } catch (Throwable fatal) {
                 Log.swallowed(fatal);
             }
+        } finally {
+            SilentAimCallbacks.endMovement();
         }
     }
     private static final class GameSettingsBridge {

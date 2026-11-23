@@ -105,6 +105,7 @@ public final class Categories {
                 add(modules, HUD.class);
                 add(modules, ChestESP.class);
                 add(modules, Trajectories.class);
+                add(modules, Projectiles.class);
                 add(modules, Radar.class);
                 add(modules, FireballPredict.class);
                 break;
