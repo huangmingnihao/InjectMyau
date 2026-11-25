@@ -20,7 +20,12 @@ public class AccountManager {
         SSLContext ignored = SSLUtils.getSSLContext();
 
         if (ForgeCompat.isPresent()) {
-            ForgeBinding.register();
+            try {
+                ForgeBinding.register();
+            } catch (Throwable ignored2) {
+                // the event bus on Fabric/Ornithe is an emulation, so hooking it
+                // must never be able to abort client construction
+            }
         }
         if (!file.exists()) {
             try {

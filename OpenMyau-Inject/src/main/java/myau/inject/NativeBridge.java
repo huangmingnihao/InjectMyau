@@ -32,6 +32,7 @@ public final class NativeBridge {
         }
         installed = true;
         try {
+            Obfuscation.prepare();
             Hooks.register();
             log("hooks registered: " + HookRegistry.size());
 
@@ -53,6 +54,13 @@ public final class NativeBridge {
                 String notch = MappingBridge.notchClass(owner);
                 if (notch != null) {
                     owners.add(notch);
+                }
+                // calamus clients keep the real name for some classes and a
+                // net/minecraft/unmapped/C_… id for the rest, and only the id shows
+                // up in the JVM, so ask for both
+                String calamus = MappingBridge.intermediaryClass(owner);
+                if (calamus != null) {
+                    owners.add(calamus.replace('/', '.'));
                 }
             }
             log("asking for " + owners.size() + " already-loaded names: " + owners);
@@ -143,6 +151,14 @@ public final class NativeBridge {
             }
             log("warm-up complete: " + (ourClasses == null ? 0 : ourClasses.size())
                     + " own classes known");
+            java.util.List<String> misses = Obfuscation.misses();
+            if (!misses.isEmpty()) {
+                log("left " + misses.size() + " member names untranslated, first "
+                        + Math.min(8, misses.size()) + ":");
+                for (int i = 0; i < Math.min(8, misses.size()); i++) {
+                    log("  " + misses.get(i));
+                }
+            }
         } catch (Throwable t) {
             Log.throwable("warm-up failed", t);
         }

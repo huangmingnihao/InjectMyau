@@ -57,7 +57,7 @@ public abstract class MixinMinecraft {
             at = {@At("RETURN")}
     )
     private void postStartGame(CallbackInfo callbackInfo) {
-        new Myau();
+        myau.inject.Bootstrap.startNow();
     }
 
     @Inject(

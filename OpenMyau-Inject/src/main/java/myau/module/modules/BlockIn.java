@@ -246,8 +246,14 @@ public class BlockIn extends Module {
             this.setEnabled(false);
         }
     }
+    private static int diagFrames;
     @EventTarget
     public void onRender2D(Render2DEvent event) {
+        if (this.isEnabled() && ++diagFrames % 600 == 0) {
+            myau.inject.Diag.log("blockin render fill=" + this.fillCount
+                    + " placing=" + this.placing + " bar=" + this.progressBar.getValue()
+                    + " player=" + (mc.thePlayer != null));
+        }
         if (!this.isEnabled() || !this.progressBar.getValue() || mc.thePlayer == null) {
             return;
         }

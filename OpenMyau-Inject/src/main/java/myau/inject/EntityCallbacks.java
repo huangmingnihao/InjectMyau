@@ -89,9 +89,13 @@ public final class EntityCallbacks {
     }
     public static void moveFlying(EntityLivingBase entity, float strafe, float forward,
                                   float friction) {
+        // 1.8.9 declares moveFlying on Entity only, so the call has to go through
+        // Entity as well: a calamus call site keeps the id of the class that
+        // declares the member, and EntityLivingBase has none of its own
+        Entity body = (Entity) entity;
         try {
             if (!(entity instanceof EntityPlayerSP)) {
-                entity.moveFlying(strafe, forward, friction);
+                body.moveFlying(strafe, forward, friction);
                 return;
             }
             StrafeEvent event = new StrafeEvent(strafe, forward, friction);
@@ -101,13 +105,17 @@ public final class EntityCallbacks {
             if (active) {
                 entity.rotationYaw = RotationState.getSmoothedYaw();
             }
-            entity.moveFlying(event.getStrafe(), event.getForward(), event.getFriction());
+            body.moveFlying(event.getStrafe(), event.getForward(), event.getFriction());
             if (active) {
                 entity.rotationYaw = yaw;
             }
         } catch (Throwable swallowed) {
             Log.swallowed(swallowed);
-            entity.moveFlying(strafe, forward, friction);
+            try {
+                body.moveFlying(strafe, forward, friction);
+            } catch (Throwable again) {
+                Log.swallowed(again);
+            }
         }
     }
     public static void moveEntity(EntityLivingBase entity, double x, double y, double z) {

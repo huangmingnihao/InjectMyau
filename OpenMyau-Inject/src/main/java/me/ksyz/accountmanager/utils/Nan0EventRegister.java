@@ -16,8 +16,15 @@ import java.util.concurrent.ConcurrentHashMap;
 public class Nan0EventRegister {
 
     public static void register(EventBus bus, Object target) {
-        ConcurrentHashMap<Object, ArrayList<IEventListener>> listeners = ReflectionHelper.getPrivateValue(EventBus.class, bus, "listeners");
-        Map<Object, ModContainer> listenerOwners = ReflectionHelper.getPrivateValue(EventBus.class, bus, "listenerOwners");
+        Object rawListeners = ReflectionHelper.getPrivateValue(EventBus.class, bus, "listeners");
+        Object rawOwners = ReflectionHelper.getPrivateValue(EventBus.class, bus, "listenerOwners");
+        if (!(rawListeners instanceof ConcurrentHashMap) || !(rawOwners instanceof Map)) {
+            return;
+        }
+        @SuppressWarnings("unchecked")
+        ConcurrentHashMap<Object, ArrayList<IEventListener>> listeners = (ConcurrentHashMap<Object, ArrayList<IEventListener>>) rawListeners;
+        @SuppressWarnings("unchecked")
+        Map<Object, ModContainer> listenerOwners = (Map<Object, ModContainer>) rawOwners;
         if (listeners.containsKey(target)) {
             return;
         }
@@ -44,7 +51,12 @@ public class Nan0EventRegister {
     private static void register(EventBus bus, Class<?> eventType, Object target, Method method, ModContainer owner) {
         try {
             int busID = ReflectionHelper.getPrivateValue(EventBus.class, bus, "busID");
-            ConcurrentHashMap<Object, ArrayList<IEventListener>> listeners = ReflectionHelper.getPrivateValue(EventBus.class, bus, "listeners");
+            Object raw = ReflectionHelper.getPrivateValue(EventBus.class, bus, "listeners");
+            if (!(raw instanceof ConcurrentHashMap)) {
+                return;
+            }
+            @SuppressWarnings("unchecked")
+            ConcurrentHashMap<Object, ArrayList<IEventListener>> listeners = (ConcurrentHashMap<Object, ArrayList<IEventListener>>) raw;
             Constructor<?> ctr = eventType.getConstructor();
             ctr.setAccessible(true);
             Event event = (Event) ctr.newInstance();

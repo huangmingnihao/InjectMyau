@@ -96,9 +96,9 @@ dependencies {
         isTransitive = false
     }
     annotationProcessor("org.spongepowered:mixin:0.8.5-SNAPSHOT")
-    shadowImpl("org.ow2.asm:asm:9.7")
-    shadowImpl("org.ow2.asm:asm-tree:9.7")
-    shadowImpl("org.ow2.asm:asm-commons:9.7")
+    shadowImpl("org.ow2.asm:asm:9.9")
+    shadowImpl("org.ow2.asm:asm-tree:9.9")
+    shadowImpl("org.ow2.asm:asm-commons:9.9")
     runtimeOnly("me.djtheredstoner:DevAuth-forge-legacy:1.2.1")
 }
 tasks.withType(JavaCompile::class) {

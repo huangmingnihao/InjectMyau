@@ -123,7 +123,71 @@ public class FMLLoadingPlugin implements IMixinConfigPlugin {
     }
 
     public boolean shouldApplyMixin(String targetClassName, String mixinClassName) {
+        // Another freelook provider owns the camera redirects (freelook / PolyFox etc.).
+        // Mixin resolves @Redirect conflicts by priority, and the losing config fails
+        // its require check, which crashes startup. Defer to the installed mod instead.
+        if (mixinClassName != null && mixinClassName.startsWith("myau.mixin.MixinFreeLook")) {
+            boolean foreign = foreignFreeLookProvider();
+            myau.inject.Diag.log("shouldApplyMixin " + mixinClassName + " foreignFreelook=" + foreign);
+            return !foreign;
+        }
         return true;
+    }
+
+    private static Boolean foreignFreeLook;
+
+    private static boolean foreignFreeLookProvider() {
+        if (foreignFreeLook != null) {
+            return foreignFreeLook;
+        }
+        boolean found = false;
+        try {
+            Class<?> fabricLoader = Class.forName("net.fabricmc.loader.api.FabricLoader");
+            Object instance = fabricLoader.getMethod("getInstance").invoke(null);
+            for (String id : new String[]{"freelook", "freelookmod", "polyfox-freelook", "polyfox"}) {
+                Object loaded = fabricLoader.getMethod("isModLoaded", String.class).invoke(instance, id);
+                if (loaded instanceof Boolean && (Boolean) loaded) {
+                    found = true;
+                    break;
+                }
+            }
+        } catch (Throwable ignored) {
+        }
+        if (!found) {
+            try {
+                Class.forName("org.codeberg.chromatic.freelook.handler.FreelookHandler", false,
+                        FMLLoadingPlugin.class.getClassLoader());
+                found = true;
+            } catch (Throwable ignored) {
+            }
+        }
+        if (!found) {
+            found = jarNamedLikeFreelookInModsDir();
+        }
+        foreignFreeLook = found;
+        return found;
+    }
+
+    private static boolean jarNamedLikeFreelookInModsDir() {
+        for (String dir : new String[]{"mods", System.getProperty("fabric.modsFolder", "")}) {
+            if (dir == null || dir.isEmpty()) {
+                continue;
+            }
+            try {
+                java.io.File[] files = new java.io.File(dir).listFiles();
+                if (files == null) {
+                    continue;
+                }
+                for (java.io.File file : files) {
+                    String name = file.getName().toLowerCase(java.util.Locale.ROOT);
+                    if (name.endsWith(".jar") && name.contains("freelook")) {
+                        return true;
+                    }
+                }
+            } catch (Throwable ignored) {
+            }
+        }
+        return false;
     }
 
     public void acceptTargets(Set<String> myTargets, Set<String> otherTargets) {

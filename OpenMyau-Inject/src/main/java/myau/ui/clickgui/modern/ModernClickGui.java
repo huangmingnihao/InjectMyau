@@ -372,9 +372,24 @@ public class ModernClickGui extends GuiScreen implements ClickGuiScreen {
         }
     }
 
+    private static int diagFrames;
+    private void diag(int mouseX, int mouseY) {
+        diagFrames++;
+        if (diagFrames > 3) {
+            return;
+        }
+        try {
+            myau.inject.Diag.log("modern gui draw " + this.width + "x" + this.height
+                    + " mouse=" + mouseX + "," + mouseY + " alts=" + this.altsPage
+                    + " picker=" + this.pickerOpen + " scroll=" + this.scroll);
+        } catch (Throwable swallowed) {
+            myau.inject.Log.swallowed(swallowed);
+        }
+    }
     @Override
     public void drawScreen(int mouseX, int mouseY, float partialTicks) {
         GuiRender.setRenderScale(1.0);
+        diag(mouseX, mouseY);
         this.pollSearchKeys();
         GuiModule gui = this.guiModule();
         if (gui != null) {
