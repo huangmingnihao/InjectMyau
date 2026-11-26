@@ -467,7 +467,15 @@ public final class Hooks {
         HookRegistry.hook(ENTITY_RENDERER, "updateCameraAndRender", "(FJ)V").in(fl)
                 .at(Position.REPLACE_FIELD).getfield()
                 .field(MINECRAFT, "inGameHasFocus", "Z")
-                .calls("overrideMouse", "(Lnet/minecraft/client/Minecraft;)Z").add();
+                .calls("overrideMouse", "(Lnet/minecraft/client/Minecraft;)Z").optional().add();
+
+        // vanilla applies the raw mouse delta straight to the player's rotation;
+        // while freelook is on the delta has to drive the camera instead.  hooking
+        // the method itself is safer than the call site: mods rewrite the caller
+        HookRegistry.hook(ENTITY, "setAngles", "(FF)V").in(fl)
+                .at(Position.HEAD).args("this,0,1")
+                .calls("mouseAnglesEntity", "(Ljava/lang/Object;FF)Z")
+                .cancellable().add();
 
 
         HookRegistry.hook(ENTITY_RENDERER, "orientCamera", "(F)V").in(fl)
@@ -580,6 +588,17 @@ public final class Hooks {
                 .field(LOCAL_PLAYER, "experience", "F").membersOf(PLAYER)
                 .calls("experience", "(Lnet/minecraft/client/entity/EntityPlayerSP;)F").add();
         HookRegistry.hook(GUI_INGAME_FORGE, "renderExperience", "(II)V").in(player)
+                .at(Position.REPLACE_FIELD).optional()
+                .field(LOCAL_PLAYER, "experienceLevel", "I").membersOf(PLAYER)
+                .calls("experienceLevel",
+                        "(Lnet/minecraft/client/entity/EntityPlayerSP;)I").add();
+        // Fabric clients never touch GuiIngameForge (forgecompat only provides the
+        // class), so the real HUD needs the same two replacements as well
+        HookRegistry.hook(GUI_INGAME, "renderExperience", "(II)V").in(player)
+                .at(Position.REPLACE_FIELD).optional()
+                .field(LOCAL_PLAYER, "experience", "F").membersOf(PLAYER)
+                .calls("experience", "(Lnet/minecraft/client/entity/EntityPlayerSP;)F").add();
+        HookRegistry.hook(GUI_INGAME, "renderExperience", "(II)V").in(player)
                 .at(Position.REPLACE_FIELD).optional()
                 .field(LOCAL_PLAYER, "experienceLevel", "I").membersOf(PLAYER)
                 .calls("experienceLevel",

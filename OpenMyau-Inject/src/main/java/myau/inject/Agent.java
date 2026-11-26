@@ -131,22 +131,31 @@ public final class Agent {
         return chosen;
     }
     private static boolean equip(ClassLoader loader, File jar) {
+        boolean appended = true;
+        String reason = "";
         try {
             Method addUrl = URLClassLoader.class.getDeclaredMethod("addURL", URL.class);
             addUrl.setAccessible(true);
             addUrl.invoke(loader, jar.toURI().toURL());
         } catch (Throwable t) {
-            log("cannot add the jar to " + name(loader) + ": " + t);
-            return false;
+            appended = false;
+            reason = String.valueOf(t);
         }
         forgetFailedLookups(loader);
         try {
             Class<?> callbacks = Class.forName("myau.inject.Callbacks", false, loader);
             log("callbacks resolve from " + name(loader)
                     + ", defined by " + name(callbacks.getClassLoader()));
+            if (!appended) {
+                log("addURL is unavailable on " + name(loader) + " (" + reason
+                        + ") -- the jar went in through the system class search");
+            }
             return true;
         } catch (Throwable t) {
-            log("callbacks still unreachable from " + name(loader) + ": " + t);
+            log("callbacks unreachable from " + name(loader) + ": " + t);
+            if (!appended) {
+                log("and addURL failed there too: " + reason);
+            }
             return false;
         }
     }

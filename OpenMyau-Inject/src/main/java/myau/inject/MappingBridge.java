@@ -12,7 +12,21 @@ import java.util.Map;
 
 public final class MappingBridge {
     private static final Map<String, String> NOTCH_CLASSES = new HashMap<String, String>();
+    private static final Map<String, String> INTERMEDIARY_CLASSES = new HashMap<String, String>();
+    private static final Map<String, String> INTERMEDIARY_METHODS = new HashMap<String, String>();
+    private static final Map<String, String> INTERMEDIARY_FIELDS = new HashMap<String, String>();
+    private static boolean intermediaryLoaded;
     private static final Map<String, Map<String, String[]>> FIELDS = new HashMap<String, Map<String, String[]>>();
+    private static final Map<String, String> MCP_TO_SRG = new HashMap<String, String>();
+    private static final Map<String, String> SRG_TO_OFFICIAL = new HashMap<String, String>();
+    private static final Map<String, String> FIELD_TO_OFFICIAL = new HashMap<String, String>();
+    private static final Map<String, String> GLOBAL_SRG_BY_MCP = new HashMap<String, String>();
+    private static final Map<String, java.util.List<String>> MCP_SRGS =
+            new HashMap<String, java.util.List<String>>();
+    private static final Map<String, String> GLOBAL_OFFICIAL_BY_SRG = new HashMap<String, String>();
+    private static final Map<String, String> GLOBAL_OFFICIAL_BY_FIELD = new HashMap<String, String>();
+    private static final Map<String, String> GLOBAL_METHOD_ID_BY_SRG = new HashMap<String, String>();
+    private static final Map<String, String> GLOBAL_FIELD_ID_BY_SRG = new HashMap<String, String>();
     private static final Map<String, Map<String, String[]>> METHODS = new HashMap<String, Map<String, String[]>>();
     private static final Map<String, Class<?>> CLASS_CACHE = new HashMap<String, Class<?>>();
     private static final Map<String, Field> FIELD_CACHE = new HashMap<String, Field>();
@@ -30,6 +44,76 @@ public final class MappingBridge {
         return NOTCH_CLASSES.get(mcpName);
     }
 
+    public static String intermediaryClass(String mcpName) {
+        if (!intermediaryLoaded) {
+            loadIntermediary();
+        }
+        if (mcpName == null) {
+            return null;
+        }
+        return INTERMEDIARY_CLASSES.get(slashed(mcpName));
+    }
+
+    private static boolean intermediary() {
+        return Obfuscation.naming() == Obfuscation.Naming.INTERMEDIARY;
+    }
+
+    // tables are written with slashed internal names, callers pass dotted ones
+    private static String slashed(String name) {
+        return name == null || name.indexOf('/') >= 0 ? name : name.replace('.', '/');
+    }
+
+    private static void loadIntermediary() {
+        intermediaryLoaded = true;
+        // the srg table covers hooks written against intermediary/srg names,
+        // the named table covers hooks written against MCP names
+        readIntermediaryTable("/myau_intermediary.tsv");
+        readIntermediaryTable("/myau_intermediary_named.tsv");
+    }
+
+    private static void readIntermediaryTable(String resource) {
+        InputStream in = MappingBridge.class.getResourceAsStream(resource);
+        if (in == null) {
+            FAILURES.add(resource + " missing from the jar");
+            return;
+        }
+        java.io.BufferedReader reader = null;
+        try {
+            reader = new java.io.BufferedReader(new InputStreamReader(in, "UTF-8"));
+            String line;
+            while ((line = reader.readLine()) != null) {
+                String[] parts = line.split("\t");
+                if ("C".equals(parts[0]) && parts.length >= 3) {
+                    String mapped = Obfuscation.mapCalamus(parts[2]);
+                    String owner = slashed(parts[1]);
+                    if (!INTERMEDIARY_CLASSES.containsKey(owner)) {
+                        INTERMEDIARY_CLASSES.put(owner, mapped);
+                    }
+                } else if ("M".equals(parts[0]) && parts.length >= 5) {
+                    INTERMEDIARY_METHODS.put(slashed(parts[1]) + "#" + parts[2], parts[4]);
+                    if (!GLOBAL_METHOD_ID_BY_SRG.containsKey(parts[2])) {
+                        GLOBAL_METHOD_ID_BY_SRG.put(parts[2], parts[4]);
+                    }
+                } else if ("F".equals(parts[0]) && parts.length >= 4) {
+                    INTERMEDIARY_FIELDS.put(slashed(parts[1]) + "#" + parts[2], parts[3]);
+                    if (!GLOBAL_FIELD_ID_BY_SRG.containsKey(parts[2])) {
+                        GLOBAL_FIELD_ID_BY_SRG.put(parts[2], parts[3]);
+                    }
+                }
+            }
+        } catch (Throwable t) {
+            FAILURES.add(resource + " unreadable: " + t);
+        } finally {
+            if (reader != null) {
+                try {
+                    reader.close();
+                } catch (Throwable swallowed) {
+                    Log.swallowed(swallowed);
+                }
+            }
+        }
+    }
+
     public static Class<?> findClass(String mcpName) {
         Class<?> cached = CLASS_CACHE.get(mcpName);
         if (cached != null) {
@@ -41,6 +125,12 @@ public final class MappingBridge {
             String notch = NOTCH_CLASSES.get(mcpName);
             if (notch != null) {
                 found = tryClass(notch, loader);
+            }
+        }
+        if (found == null && intermediary()) {
+            String mapped = intermediaryClass(mcpName);
+            if (mapped != null) {
+                found = tryClass(mapped.replace('/', '.'), loader);
             }
         }
         if (found == null) {
@@ -81,6 +171,18 @@ public final class MappingBridge {
             found = declaredField(cls, candidate);
             if (found != null) {
                 break;
+            }
+        }
+        if (found == null && intermediary()) {
+            String tableKey = slashed(owner);
+            String mapped = INTERMEDIARY_FIELDS.get(tableKey + "#" + mcp);
+            for (String candidate : candidates(mcp, alt)) {
+                if (mapped == null && candidate != null) {
+                    mapped = INTERMEDIARY_FIELDS.get(tableKey + "#" + candidate);
+                }
+            }
+            if (mapped != null) {
+                found = declaredField(cls, mapped);
             }
         }
         if (found == null && type != null) {
@@ -147,6 +249,18 @@ public final class MappingBridge {
             found = declaredMethod(cls, candidate, params);
             if (found != null) {
                 break;
+            }
+        }
+        if (found == null && intermediary()) {
+            String tableKey = slashed(owner);
+            String mapped = INTERMEDIARY_METHODS.get(tableKey + "#" + mcp);
+            for (String candidate : candidates(mcp, alt)) {
+                if (mapped == null && candidate != null) {
+                    mapped = INTERMEDIARY_METHODS.get(tableKey + "#" + candidate);
+                }
+            }
+            if (mapped != null) {
+                found = declaredMethod(cls, mapped, params);
             }
         }
         if (found == null) {
@@ -246,15 +360,112 @@ public final class MappingBridge {
             i = end + 1;
         }
         out.add(obfuscated.toString());
+        if (intermediary()) {
+            if (!intermediaryLoaded) {
+                loadIntermediary();
+            }
+            StringBuilder mapped = new StringBuilder();
+            int k = 0;
+            while (k < mcpDescriptor.length()) {
+                char c = mcpDescriptor.charAt(k);
+                if (c != 'L') {
+                    mapped.append(c);
+                    k++;
+                    continue;
+                }
+                int end = mcpDescriptor.indexOf(';', k);
+                if (end < 0) {
+                    mapped.append(mcpDescriptor.substring(k));
+                    break;
+                }
+                String internal = mcpDescriptor.substring(k + 1, end);
+                String name = INTERMEDIARY_CLASSES.get(slashed(internal));
+                mapped.append('L')
+                        .append(name == null ? internal : name)
+                        .append(';');
+                k = end + 1;
+            }
+            out.add(mapped.toString());
+        }
         return out;
     }
     public static String[] methodNames(String owner, String mcp) {
         Map<String, String[]> names = METHODS.get(owner);
-        return candidates(mcp, names == null ? null : names.get(mcp));
+        String[] base = candidates(mcp, names == null ? null : names.get(mcp));
+        if (!intermediary()) {
+            return base;
+        }
+        if (!intermediaryLoaded) {
+            loadIntermediary();
+        }
+        // the calamus table is keyed by the srg name, so any candidate may be the key
+        String key = slashed(owner);
+        String[] out = base;
+        out = addCalamus(out, INTERMEDIARY_METHODS.get(key + "#" + mcp));
+        for (String candidate : base) {
+            if (candidate != null) {
+                out = addCalamus(out, INTERMEDIARY_METHODS.get(key + "#" + candidate));
+            }
+        }
+        // overrides that calamus leaves unmapped keep their notch name; the same
+        // mcp name can sit on several classes under different srg names, so every
+        // srg carrying this name is a candidate
+        String srg = MCP_TO_SRG.get(key + "#" + mcp);
+        java.util.List<String> srgs = MCP_SRGS.get(mcp);
+        if (srg == null && srgs != null) {
+            srg = srgs.get(0);
+        }
+        if (srg != null) {
+            out = addCalamus(out, INTERMEDIARY_METHODS.get(key + "#" + srg));
+            out = addCalamus(out, GLOBAL_METHOD_ID_BY_SRG.get(srg));
+            String official = SRG_TO_OFFICIAL.get(key + "#" + srg);
+            out = addCalamus(out, official == null ? GLOBAL_OFFICIAL_BY_SRG.get(srg) : official);
+        }
+        if (srgs != null) {
+            for (String other : srgs) {
+                out = addCalamus(out, GLOBAL_METHOD_ID_BY_SRG.get(other));
+                out = addCalamus(out, GLOBAL_OFFICIAL_BY_SRG.get(other));
+            }
+        }
+        return out;
     }
     public static String[] fieldNames(String owner, String mcp) {
         Map<String, String[]> names = FIELDS.get(owner);
-        return candidates(mcp, names == null ? null : names.get(mcp));
+        String[] base = candidates(mcp, names == null ? null : names.get(mcp));
+        if (!intermediary()) {
+            return base;
+        }
+        if (!intermediaryLoaded) {
+            loadIntermediary();
+        }
+        String key = slashed(owner);
+        String[] out = base;
+        out = addCalamus(out, INTERMEDIARY_FIELDS.get(key + "#" + mcp));
+        for (String candidate : base) {
+            if (candidate != null) {
+                out = addCalamus(out, INTERMEDIARY_FIELDS.get(key + "#" + candidate));
+            }
+        }
+        out = addCalamus(out, FIELD_TO_OFFICIAL.get(key + "#" + mcp));
+        out = addCalamus(out, GLOBAL_OFFICIAL_BY_FIELD.get(mcp));
+        return out;
+    }
+    private static String[] addCalamus(String[] base, String mapped) {
+        if (mapped == null) {
+            return base;
+        }
+        for (String name : base) {
+            if (mapped.equals(name)) {
+                return base;
+            }
+        }
+        String[] out = new String[base.length + 1];
+        System.arraycopy(base, 0, out, 0, base.length);
+        out[base.length] = mapped;
+        return out;
+    }
+    private static String[] withIntermediary(String[] base, String mapped) {
+        return addCalamus(base, mapped);
     }
     private static void load() {
         InputStream in = MappingBridge.class.getResourceAsStream("/myau_mappings.json");
@@ -272,8 +483,78 @@ public final class MappingBridge {
             }
             reader.close();
             parse(text.toString());
+            loadSignatures();
         } catch (Throwable t) {
             FAILURES.add("myau_mappings.json unreadable: " + t);
+        }
+    }
+
+    /**
+     * myau_mcp.tsv/mapped names -> srg, and myau_obf.tsv/srg -> notch. 1.8.9 keeps
+     * a member's notch name on every class that declares it (EntityPlayerSP.t_()
+     * is its own override of Entity.t_()), and the json above only lists the
+     * mcp name on the class the original project happened to target, so the
+     * notch name has to be reachable from the mcp name for those overrides.
+     */
+    private static void loadSignatures() {
+        read("myau_mcp", new LineHandler() {
+            public void line(String[] parts) {
+                if ("M".equals(parts[0]) && parts.length >= 5) {
+                    MCP_TO_SRG.put(slashed(parts[1]) + "#" + parts[4], parts[2]);
+                    java.util.List<String> srgs = MCP_SRGS.get(parts[4]);
+                    if (srgs == null) {
+                        srgs = new ArrayList<String>();
+                        MCP_SRGS.put(parts[4], srgs);
+                    }
+                    if (!srgs.contains(parts[2])) {
+                        srgs.add(parts[2]);
+                    }
+                }
+            }
+        });
+        read("myau_obf", new LineHandler() {
+            public void line(String[] parts) {
+                if ("M".equals(parts[0]) && parts.length >= 5) {
+                    SRG_TO_OFFICIAL.put(slashed(parts[1]) + "#" + parts[2], parts[4]);
+                    GLOBAL_OFFICIAL_BY_SRG.put(parts[2], parts[4]);
+                } else if ("F".equals(parts[0]) && parts.length >= 4) {
+                    FIELD_TO_OFFICIAL.put(slashed(parts[1]) + "#" + parts[2], parts[3]);
+                    GLOBAL_OFFICIAL_BY_FIELD.put(parts[2], parts[3]);
+                }
+            }
+        });
+    }
+
+    private interface LineHandler {
+        void line(String[] parts);
+    }
+
+    private static void read(String resource, LineHandler handler) {
+        InputStream in = MappingBridge.class.getResourceAsStream("/" + resource + ".tsv");
+        if (in == null) {
+            FAILURES.add(resource + ".tsv missing from the jar");
+            return;
+        }
+        java.io.BufferedReader reader = null;
+        try {
+            reader = new java.io.BufferedReader(new InputStreamReader(in, "UTF-8"));
+            String line;
+            while ((line = reader.readLine()) != null) {
+                String[] parts = line.split("\t");
+                if (parts.length > 1) {
+                    handler.line(parts);
+                }
+            }
+        } catch (Throwable t) {
+            FAILURES.add(resource + ".tsv unreadable: " + t);
+        } finally {
+            if (reader != null) {
+                try {
+                    reader.close();
+                } catch (Throwable swallowed) {
+                    Log.swallowed(swallowed);
+                }
+            }
         }
     }
     private static void parse(String json) {

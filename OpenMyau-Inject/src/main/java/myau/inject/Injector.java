@@ -179,6 +179,9 @@ public final class Injector {
         }
         return lower.contains("net.minecraft.client.main.main")
                 || lower.contains("net.minecraft.launchwrapper.launch")
+                || lower.contains("knotclient")
+                || lower.contains("net.fabricmc.loader")
+                || lower.contains("ornithe")
                 || lower.contains("lunar")
                 || lower.contains("badlion");
     }

@@ -105,8 +105,16 @@ public final class Callbacks {
             Log.swallowed(swallowed);
         }
     }
+    private static long myauDiagLast;
+
     public static void render2DPost() {
         try {
+            if (System.currentTimeMillis() - myauDiagLast > 5000L) {
+                myauDiagLast = System.currentTimeMillis();
+                Diag.log("render2DPost started=" + Bootstrap.isStarted()
+                        + " inGame=" + GameState.inGame()
+                        + " modules=" + (Myau.moduleManager == null ? -1 : Myau.moduleManager.modules.size()));
+            }
             if (!Bootstrap.isStarted() || !GameState.inGame()) {
                 return;
             }
@@ -152,10 +160,18 @@ public final class Callbacks {
         }
     }
 
+    private static int clickDiag;
     public static boolean rightClickMouse() {
         try {
             if (!Bootstrap.isStarted() || !GameState.inGame()) {
+                if (++clickDiag % 60 == 0) {
+                    Diag.log("rightClick skipped started=" + Bootstrap.isStarted()
+                            + " inGame=" + GameState.inGame());
+                }
                 return false;
+            }
+            if (++clickDiag % 60 == 0) {
+                Diag.log("rightClick dispatched inGame=" + GameState.inGame());
             }
             RightClickMouseEvent event = new RightClickMouseEvent();
             EventManager.call(event);
@@ -252,6 +268,9 @@ public final class Callbacks {
             if (key == 0) {
                 return;
             }
+            Diag.log("key down " + key + " screen="
+                    + (Minecraft.getMinecraft().currentScreen == null ? "null"
+                    : Minecraft.getMinecraft().currentScreen.getClass().getName()));
             EventManager.call(new KeyEvent(key,
                     Minecraft.getMinecraft().currentScreen != null));
         } catch (Throwable swallowed) {

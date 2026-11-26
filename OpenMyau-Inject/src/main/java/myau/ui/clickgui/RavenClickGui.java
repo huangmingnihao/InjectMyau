@@ -78,9 +78,31 @@ public class RavenClickGui extends GuiScreen implements ClickGuiScreen {
         }
         return null;
     }
+    private static int diagFrames;
+    private void diag(int mouseX, int mouseY) {
+        diagFrames++;
+        if (diagFrames > 3) {
+            return;
+        }
+        try {
+            myau.inject.Diag.log("clickgui draw " + this.width + "x" + this.height
+                    + " mouse=" + mouseX + "," + mouseY + " panels=" + this.categories.size());
+        } catch (Throwable swallowed) {
+            myau.inject.Log.swallowed(swallowed);
+        }
+    }
     @Override
     public void drawScreen(int mouseX, int mouseY, float partialTicks) {
         GuiRender.setRenderScale(1.0);
+        diag(mouseX, mouseY);
+        try {
+            renderBody(mouseX, mouseY);
+        } catch (Throwable t) {
+            myau.inject.Diag.log("clickgui exception: " + t
+                    + " / " + (t.getStackTrace().length > 0 ? t.getStackTrace()[0] : "?"));
+        }
+    }
+    private void renderBody(int mouseX, int mouseY) {
         drawRect(0, 0, this.width, this.height, new Color(0, 0, 0, 100).getRGB());
         this.mc.fontRendererObj.drawStringWithShadow("Myau Inject " + Myau.version,
                 4, this.height - 3 - this.mc.fontRendererObj.FONT_HEIGHT,

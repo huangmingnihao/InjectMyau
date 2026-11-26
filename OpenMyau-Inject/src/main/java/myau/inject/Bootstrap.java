@@ -12,6 +12,15 @@ public final class Bootstrap {
         requested = true;
     }
 
+    /**
+     * Mod loading path (Fabric / ForgeCompat): construct the client immediately and
+     * flag it as started, so every callback gated on {@link #isStarted()} works.
+     */
+    public static void startNow() {
+        requested = true;
+        tick();
+    }
+
     public static void requestStop() {
         stopRequested = true;
     }
@@ -36,12 +45,15 @@ public final class Bootstrap {
         if (!requested || started) {
             return;
         }
-        started = true;
         try {
             log("constructing client on the game thread");
             new Myau();
+            started = true;
             log("client ready");
         } catch (Throwable t) {
+            // do not leave a half-built client behind: started stays false so the
+            // callbacks stay inert, and stop asking for another attempt
+            requested = false;
             Log.throwable("client failed to start", t);
         }
     }

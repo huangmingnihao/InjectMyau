@@ -71,7 +71,9 @@ int scoreCommandLine(const std::wstring &rawCommandLine) {
     }
 
     bool isGame = contains(cmd, L"net.minecraft.client.main.main")
-            || contains(cmd, L"net.minecraft.launchwrapper.launch");
+            || contains(cmd, L"net.minecraft.launchwrapper.launch")
+            || contains(cmd, L"knotclient")
+            || contains(cmd, L"ornithe");
     if (!isGame
             && (contains(cmd, L"hmcl") || contains(cmd, L"multimc")
                 || contains(cmd, L"prismlauncher") || contains(cmd, L"atlauncher")
@@ -101,6 +103,10 @@ std::wstring launcherOf(const std::wstring &rawCommandLine) {
     }
     if (contains(cmd, L"badlion")) {
         return L"Badlion";
+    }
+    if (contains(cmd, L"knotclient") || contains(cmd, L"ornithe")
+            || contains(cmd, L"fabricmc")) {
+        return L"Fabric";
     }
     if (contains(cmd, L"net.minecraft.launchwrapper.launch")
             || contains(cmd, L"forge") || contains(cmd, L"fml")) {

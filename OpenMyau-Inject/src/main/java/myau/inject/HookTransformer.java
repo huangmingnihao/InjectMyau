@@ -51,6 +51,11 @@ public final class HookTransformer implements ClassFileTransformer {
                 nameToMcp.put(notch, mcp);
                 internalToMcp.put(notch.replace('.', '/'), mcp);
             }
+            String intermediary = MappingBridge.intermediaryClass(mcp);
+            if (intermediary != null) {
+                nameToMcp.put(intermediary.replace('/', '.'), mcp);
+                internalToMcp.put(intermediary, mcp);
+            }
         }
         Set<String> found = new HashSet<String>();
         for (Class<?> candidate : loaded) {
@@ -119,6 +124,33 @@ public final class HookTransformer implements ClassFileTransformer {
     public boolean hasLog() {
         return !log.isEmpty();
     }
+    /** Lists calls in the target with the same descriptor, so a failed match
+     *  shows what the method actually invokes. */
+    private String lookAlikes(MethodNode target, HookRegistry.Hook hook) {
+        try {
+            if (hook.targetDescriptor == null) {
+                return "";
+            }
+            List<String> seen = new ArrayList<String>();
+            for (AbstractInsnNode insn = target.instructions.getFirst();
+                 insn != null; insn = insn.getNext()) {
+                if (!(insn instanceof MethodInsnNode)) {
+                    continue;
+                }
+                MethodInsnNode call = (MethodInsnNode) insn;
+                if (!hook.targetDescriptor.equals(call.desc)) {
+                    continue;
+                }
+                String entry = call.owner + "." + call.name + call.desc;
+                if (!seen.contains(entry)) {
+                    seen.add(entry);
+                }
+            }
+            return " -- same-desc calls: " + seen;
+        } catch (Throwable swallowed) {
+            return "";
+        }
+    }
     @Override
     public byte[] transform(ClassLoader loader, String internalName, Class<?> beingRedefined,
                             ProtectionDomain domain, byte[] original) {
@@ -133,6 +165,7 @@ public final class HookTransformer implements ClassFileTransformer {
         if (hooks.isEmpty()) {
             return null;
         }
+        List<String> done = new ArrayList<String>();
         try {
             ClassNode node = new ClassNode();
             new ClassReader(original).accept(node, 0);
@@ -141,7 +174,10 @@ public final class HookTransformer implements ClassFileTransformer {
             for (HookRegistry.Hook hook : hooks) {
                 MethodNode target = findMethod(node, hook.nameOwner, hook);
                 if (target == null) {
-                    log.offer("no method " + mcp + "." + hook.method);
+                    log.offer("no method " + mcp + "." + hook.method
+                            + " wanted " + java.util.Arrays.toString(
+                                    MappingBridge.methodNames(hook.nameOwner, hook.method))
+                            + " -- class declares " + declaredNames(node));
                     continue;
                 }
                 if (!cancellableHere(hook)) {
@@ -164,11 +200,12 @@ public final class HookTransformer implements ClassFileTransformer {
                 }
                 if (placed == 0) {
                     log.offer("no insertion point for " + mcp + "." + hook.method
-                            + " @" + hook.position);
+                            + " @" + hook.position + lookAlikes(target, hook));
                     continue;
                 }
                 installed++;
                 applied.add(mcp + "." + hook.method);
+                done.add(hook.position + " " + hook.method);
             }
             if (installed == 0) {
                 return null;
@@ -176,12 +213,36 @@ public final class HookTransformer implements ClassFileTransformer {
 
             ClassWriter writer = new ClassWriter(ClassWriter.COMPUTE_MAXS);
             node.accept(writer);
-            log.offer("patched " + mcp + " (" + installed + "/" + hooks.size() + ")");
+            if (verbose(mcp)) {
+                log.offer("patched " + mcp + " (" + installed + "/" + hooks.size() + "): "
+                        + done);
+            } else {
+                log.offer("patched " + mcp + " (" + installed + "/" + hooks.size() + ")");
+            }
             return writer.toByteArray();
         } catch (Throwable t) {
             log.offer("FAILED " + mcp + ": " + t);
             return null;
         }
+    }
+    private boolean verbose(String mcp) {
+        return mcp.endsWith("EntityRenderer") || mcp.endsWith("ActiveRenderInfo")
+                || mcp.endsWith("RenderGlobal") || mcp.endsWith("GuiIngame");
+    }
+    private String declaredNames(ClassNode node) {        StringBuilder out = new StringBuilder("[");
+        int shown = 0;
+        for (MethodNode m : node.methods) {
+            if (shown == 12) {
+                out.append(", ...");
+                break;
+            }
+            if (shown > 0) {
+                out.append(", ");
+            }
+            out.append(m.name).append(m.desc);
+            shown++;
+        }
+        return out.append(']').toString();
     }
     private MethodNode findMethod(ClassNode node, String mcpOwner, HookRegistry.Hook hook) {
         String[] names = MappingBridge.methodNames(mcpOwner, hook.method);
@@ -438,7 +499,7 @@ public final class HookTransformer implements ClassFileTransformer {
                 continue;
             }
             MethodInsnNode call = (MethodInsnNode) insn;
-            if (!owners.contains(call.owner)) {
+            if (!owners.contains(call.owner) && !inheritedId(owners, call.name)) {
                 continue;
             }
             if (hook.targetDescriptor != null && !descriptors.contains(call.desc)) {
@@ -539,7 +600,7 @@ public final class HookTransformer implements ClassFileTransformer {
             if (hook.fieldOpcode >= 0 && access.getOpcode() != hook.fieldOpcode) {
                 continue;
             }
-            if (!owners.contains(access.owner)) {
+            if (!owners.contains(access.owner) && !inheritedId(owners, access.name)) {
                 continue;
             }
             if (hook.targetDescriptor != null && !descriptors.contains(access.desc)) {
@@ -561,12 +622,36 @@ public final class HookTransformer implements ClassFileTransformer {
         }
         return found;
     }
+    /**
+     * calamus keeps the id of the declaring class on the member even when the
+     * instruction names a subclass (1.8.9 reads entity.rotationYaw through
+     * EntityPlayer although the field lives on Entity), so a calamus id is
+     * enough to accept the match on its own.
+     */
+    private boolean inheritedId(Set<String> owners, String name) {
+        if (name == null) {
+            return false;
+        }
+        if (!name.startsWith("m_") && !name.startsWith("f_")) {
+            return false;
+        }
+        for (String owner : owners) {
+            if (owner != null && owner.startsWith("net/minecraft/")) {
+                return true;
+            }
+        }
+        return false;
+    }
     private Set<String> ownerNames(String mcpClass) {
         Set<String> names = new java.util.LinkedHashSet<String>();
         names.add(mcpClass.replace('.', '/'));
         String notch = MappingBridge.notchClass(mcpClass);
         if (notch != null) {
             names.add(notch.replace('.', '/'));
+        }
+        String calamus = MappingBridge.intermediaryClass(mcpClass);
+        if (calamus != null) {
+            names.add(calamus);
         }
         return names;
     }

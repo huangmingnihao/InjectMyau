@@ -51,16 +51,24 @@ public class GuiModule extends Module {
     @Override
     public void onEnabled() {
         setEnabled(false);
-        if (this.style.getValue() == 0) {
-            if (this.modernClickGui == null) {
-                this.modernClickGui = new ModernClickGui();
+        try {
+            myau.inject.Diag.log("click gui open style=" + this.style.getValue()
+                    + " screen=" + (mc.currentScreen == null ? "null" : mc.currentScreen.getClass().getName()));
+            if (this.style.getValue() == 0) {
+                if (this.modernClickGui == null) {
+                    this.modernClickGui = new ModernClickGui();
+                }
+                mc.displayGuiScreen(this.modernClickGui);
+            } else {
+                if (this.ravenClickGui == null) {
+                    this.ravenClickGui = new RavenClickGui();
+                }
+                mc.displayGuiScreen(this.ravenClickGui);
             }
-            mc.displayGuiScreen(this.modernClickGui);
-        } else {
-            if (this.ravenClickGui == null) {
-                this.ravenClickGui = new RavenClickGui();
-            }
-            mc.displayGuiScreen(this.ravenClickGui);
+            myau.inject.Diag.log("click gui shown -> "
+                    + (mc.currentScreen == null ? "null" : mc.currentScreen.getClass().getName()));
+        } catch (Throwable t) {
+            myau.inject.Diag.log("click gui failed: " + t);
         }
     }
 }

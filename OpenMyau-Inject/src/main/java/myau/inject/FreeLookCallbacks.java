@@ -44,12 +44,20 @@ public final class FreeLookCallbacks {
         return SlinkyRotationService.isCameraActive() || myau.slinky.silent.SilentRotationService.storedRotationValid();
     }
 
+    private static int diagFrames;
     /** Runs every rendered frame from EntityRenderer.updateCameraAndRender. */
     public static void frameTick() {
         try {
             FreeLook module = module();
             if (module != null) {
                 module.onFrame();
+                if (++diagFrames % 600 == 0) {
+                    Diag.log("freelook frame enabled=" + module.isEnabled()
+                            + " toggled=" + FreeLook.perspectiveToggled
+                            + " key=" + module.freelookKey.isHeld()
+                            + " yaw=" + FreeLook.cameraYaw
+                            + " screen=" + (Minecraft.getMinecraft().currentScreen != null));
+                }
             }
         } catch (Throwable t) {
             Log.swallowed(t);
@@ -172,6 +180,43 @@ public final class FreeLookCallbacks {
     }
 
     // ---- EntityRenderer.updateCameraAndRender: mouse handling --------------
+
+    /**
+     * Head hook on {@code Entity.setAngles(yaw, pitch)}, the method vanilla uses to
+     * rotate the player with the raw mouse delta.  While freelook is on the delta is
+     * applied to the camera instead and the body keeps its rotation.
+     */
+    public static boolean mouseAnglesEntity(Object self, float yaw, float pitch) {
+        try {
+            Entity entity = (Entity) self;
+            Minecraft mc = Minecraft.getMinecraft();
+            FreeLook module = module();
+            if (entity == mc.thePlayer && module != null
+                    && module.isEnabled() && FreeLook.perspectiveToggled) {
+                FreeLook.cameraYaw = (float) ((double) FreeLook.cameraYaw + (double) yaw * 0.15D);
+                float p = module.invertPitch.getValue() ? -pitch : pitch;
+                FreeLook.cameraPitch =
+                        (float) ((double) FreeLook.cameraPitch - (double) p * 0.15D);
+                if (module.lockPitch.getValue()) {
+                    FreeLook.cameraPitch = Math.max(-90.0F, Math.min(90.0F, FreeLook.cameraPitch));
+                }
+                if (module.customFov.getValue()) {
+                    mc.gameSettings.fovSetting = module.fov.getValue();
+                }
+                return true;
+            }
+        } catch (Throwable t) {
+            Log.swallowed(t);
+        }
+        return false;
+    }
+
+    /** Replaces the {@code Entity.setAngles(yaw, pitch)} call site variant. */
+    public static void mouseAngles(Entity entity, float yaw, float pitch) {
+        if (!mouseAnglesEntity(entity, yaw, pitch)) {
+            entity.setAngles(yaw, pitch);
+        }
+    }
 
     /** Replaces the {@code Minecraft.inGameHasFocus} read guarding mouse input. */
     public static boolean overrideMouse(Minecraft mc) {

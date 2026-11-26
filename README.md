@@ -10,6 +10,79 @@ Forge still works too — the same build runs there, and that is the easiest pla
 
 ![Preview](OpenMyau-Inject/images/image2.png)
 
+## 中文说明
+
+把 Myau 1.8.9 客户端以 JVMTI 注入的方式塞进一个**已经在跑**的游戏里，不装成 mod。适用于没有
+`mods` 目录的启动器（Badlion、Lunar），也适用于 Fabric/Ornithe 系的 1.8.9 客户端
+（`KnotClassLoader` + calamus gen2 命名）。Forge 同样能用，开发时最省事。
+
+### 修复的已知问题
+
+原版在 Fabric/Ornithe 这类运行时上有一批已知的 bug：注入进得去、日志也写得出来，但 HUD、
+ClickGUI、BlockIn、FreeLook 各有各的坏法。这次把它们都修了：
+
+1. **注入落错加载器**：`KnotClassLoader` 不是 `URLClassLoader`，原版退到
+   `AddToSystemClassLoaderSearch`，`myau.*` 被定义在系统加载器里，看不见游戏类，回调也回不来。
+   改为反射拿 `KnotClassLoader.delegate`，调 `KnotClassDelegate.addCodeSource(Path)`。
+2. **类文件版本读不了**：Ornithe 的类是新 JDK 编的（class major 69），原版用的 ASM 直接抛
+   `Unsupported class file major version 69`，retransform 一个类都过不去。升到 ASM 9.9。
+3. **成员 id 串号**：同一个 mcp 名（如 `onUpdate`）在表里对应多个 srg，原版只取第一个，被
+   `FoodStats` 抢走 `m_20638750`，于是 `UpdateEvent` / `PlayerUpdateEvent` 从不派发，
+   BlockIn 一块砖都不放。现在把这个名字下的**全部** srg 展开成候选 id。
+4. **自己类里的 `@Override` 全部失效**：calamus 按**声明类**发 id
+   （`GuiScreen.drawScreen(IIF)V` 是 `m_93956703`，`GuiSlot.drawScreen(IIF)V` 是 `m_60498464`，
+   同签名不同 id）。原版不给我们自己的类改名，覆盖方法落空，结果窗口能打开、键鼠有反应、
+   却一个像素都不画。现在沿父类链找到游戏类的 id 再改名。
+5. **FreeLook 的鼠标接管挂不上**：原版钩 `EntityRenderer.updateCameraAndRender` 里的调用点，
+   但那次调用编译时 owner 是 `EntityPlayerSP`、成员声明在 `Entity`，永远匹配不到。改成钩
+   `Entity.setAngles(FF)` 方法头：激活且对象是玩家时把位移写进 `cameraYaw/cameraPitch` 并取消
+   原方法体，身体不再跟着鼠标转。
+6. **诊断写进游戏目录**：原来往 `.minecraft\myau-diag.log` 写，现在全部进
+   `%TEMP%\myau-native.log`（每行带 `[myau-client]` 前缀），和注入器日志同一个文件。
+
+### 已知限制
+
+`RenderGlobal.setupTerrain` 的视锥剔除钩子在该客户端的 `setupTerrain` 已被其他 mod 改写
+（调用表里是 `handler$cko000$polyplus$recullStagedCamera`、`ArgentumWorldRenderer` 等），
+暂时挂不上；HUD、ClickGUI、BlockIn、FreeLook 已实机可用。
+
+### 排错先看哪里
+
+`%TEMP%\myau-native.log`。它记录了每个 hook 的落地情况（`patched X (n/m): [...]`）、
+没能解析的名字，以及 `no insertion point` 时附带的该方法内**同描述符的所有调用**
+（`-- same-desc calls: [...]`），用来判断调用点到底长什么样。
+
+## Known issues fixed in this build
+
+The original build reaches a Fabric/Ornithe client but breaks in specific, reproducible ways.
+These are the known bugs and what was done about them.
+
+- **Payload landed in the wrong loader.** `KnotClassLoader` is not a `URLClassLoader`, and the
+  fallback `AddToSystemClassLoaderSearch` defined `myau.*` in the system loader — invisible to the
+  game classes, with callbacks the rewritten game could not resolve. It now reflects into
+  `KnotClassLoader.delegate` and calls `addCodeSource(Path)`.
+- **Newer class files refused to load.** Ornithe compiles with a modern JDK (class major 69) and the
+  ASM that shipped with legacy Forge threw `Unsupported class file major version 69` before a single
+  class was retransformed. The build now ships ASM 9.9.
+- **Member ids collided.** One mcp name (`onUpdate`) maps to several srg names; taking only the first
+  let another class (`FoodStats`) claim the id, so `UpdateEvent`/`PlayerUpdateEvent` never fired and
+  BlockIn did nothing. Every srg under that name is now expanded into candidate ids.
+- **Overrides in our own classes never applied.** calamus issues ids per *declaring* class
+  (`GuiScreen.drawScreen(IIF)V` is `m_93956703`, `GuiSlot.drawScreen(IIF)V` is `m_60498464`). The
+  original build left our own classes unrenamed, so the screen opened, input worked, and nothing
+  was drawn. Overrides are now renamed to the parent's id.
+- **FreeLook's mouse takeover never attached.** The original hooked the call site inside
+  `EntityRenderer.updateCameraAndRender`, but that call is compiled against `EntityPlayerSP` while
+  `setAngles` is declared on `Entity`. It is hooked at `Entity.setAngles(FF)` instead: while
+  freelook is active the delta drives `cameraYaw`/`cameraPitch` and the body keeps its rotation.
+- **Diagnostics polluted the game directory.** `myau-diag.log` used to be written into `.minecraft`;
+  everything now goes to `%TEMP%\myau-native.log` with a `[myau-client]` prefix.
+
+Known limitation: the `RenderGlobal.setupTerrain` frustum hook cannot be placed because other mods
+rewrite that method on this client (`handler$cko000$polyplus$recullStagedCamera`,
+`ArgentumWorldRenderer`, …). HUD, ClickGUI, BlockIn and FreeLook work.
+
+
 ## Layout
 
 ```

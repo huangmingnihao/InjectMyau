@@ -123,6 +123,10 @@ jobject findGameClassLoader(JNIEnv *env) {
                     && signature) {
                 if (strcmp(signature, "Lnet/minecraft/client/Minecraft;") == 0) {
                     byName = env->NewGlobalRef(loader);
+                } else if (strncmp(signature, "Lnet/minecraft/unmapped/", 24) == 0
+                        || strncmp(signature, "Lnet/minecraft/class_", 21) == 0) {
+                    byName = env->NewGlobalRef(loader);
+                    logf("game classloader found by an intermediary name (%s)", signature);
                 }
                 g_jvmti->Deallocate((unsigned char *)signature);
             }
@@ -262,8 +266,167 @@ std::string toUtf8(const std::wstring &text) {
     return out;
 }
 
-bool addJarToLoader(JNIEnv *env, jobject loader, const std::wstring &jarPath) {
+std::string definingLoaderOf(JNIEnv *env, jclass cls) {
+    if (!cls) {
+        return "?";
+    }
+    jclass classClass = env->FindClass("java/lang/Class");
+    jmethodID getClassLoader = env->GetMethodID(classClass, "getClassLoader",
+                                                "()Ljava/lang/ClassLoader;");
+    if (!getClassLoader) {
+        clearPendingException(env, "Class.getClassLoader");
+        return "?";
+    }
+    jobject owner = env->CallObjectMethod(cls, getClassLoader);
+    if (clearPendingException(env, "Class.getClassLoader")) {
+        return "?";
+    }
+    return classNameOf(env, owner);
+}
+
+bool isUrlClassLoader(JNIEnv *env, jobject loader) {
+    jclass urlClassLoaderClass = env->FindClass("java/net/URLClassLoader");
+    bool is = urlClassLoaderClass && env->IsInstanceOf(loader, urlClassLoaderClass);
+    clearPendingException(env, "IsInstanceOf URLClassLoader");
+    return is;
+}
+
+// Fabric/Ornithe hands the game to KnotClassLoader, which keeps every mod and game
+// entry in a set of "code sources" held by its KnotClassDelegate rather than in a
+// URLClassLoader. addCodeSource(Path) is public on that delegate, so registering our
+// jar there makes the game loader itself define myau.* -- which is what the hooks
+// need, because the bytecode we splice into the game resolves its callees through
+// the game loader and nothing else.
+jobject knotDelegateOf(JNIEnv *env, jobject loader) {
+    jclass loaderClass = env->GetObjectClass(loader);
+    if (!loaderClass) {
+        return nullptr;
+    }
+    jfieldID field = env->GetFieldID(
+            loaderClass, "delegate",
+            "Lnet/fabricmc/loader/impl/launch/knot/KnotClassDelegate;");
+    if (!field) {
+        clearPendingException(env, "KnotClassLoader.delegate");
+        env->DeleteLocalRef(loaderClass);
+        return nullptr;
+    }
+    jobject delegate = env->GetObjectField(loader, field);
+    env->DeleteLocalRef(loaderClass);
+    return delegate;
+}
+
+jobject pathOf(JNIEnv *env, const std::wstring &file) {
+    jclass pathsClass = env->FindClass("java/nio/file/Paths");
+    jclass stringClass = env->FindClass("java/lang/String");
+    if (!pathsClass || !stringClass) {
+        clearPendingException(env, "resolving java.nio.file.Paths");
+        return nullptr;
+    }
+    jmethodID get = env->GetStaticMethodID(pathsClass, "get",
+                                           "(Ljava/lang/String;[Ljava/lang/String;)Ljava/nio/file/Path;");
+    if (!get) {
+        clearPendingException(env, "Paths.get");
+        return nullptr;
+    }
+    jstring text = env->NewStringUTF(toUtf8(file).c_str());
+    jobjectArray empty = env->NewObjectArray(0, stringClass, nullptr);
+    jobject path = env->CallStaticObjectMethod(pathsClass, get, text, empty);
+    if (clearPendingException(env, "Paths.get")) {
+        return nullptr;
+    }
+    return path;
+}
+
+bool addToKnot(JNIEnv *env, jobject loader, const std::wstring &jarPath) {
+    jobject delegate = knotDelegateOf(env, loader);
+    if (!delegate) {
+        logf("the game classloader exposes no KnotClassDelegate -- not a Fabric loader");
+        return false;
+    }
+    jobject path = pathOf(env, jarPath);
+    if (!path) {
+        return false;
+    }
+    jclass delegateClass = env->GetObjectClass(delegate);
+    jmethodID addCodeSource = env->GetMethodID(delegateClass, "addCodeSource",
+                                               "(Ljava/nio/file/Path;)V");
+    if (!addCodeSource) {
+        clearPendingException(env, "KnotClassDelegate.addCodeSource");
+        return false;
+    }
+    env->CallVoidMethod(delegate, addCodeSource, path);
+    if (clearPendingException(env, "KnotClassDelegate.addCodeSource")) {
+        logf("Knot refused the code source, injection cannot proceed through it");
+        return false;
+    }
+    logf("jar registered as a Fabric code source on the Knot delegate: %s",
+         toUtf8(jarPath).c_str());
+    return true;
+}
+
+// Last resort for a loader that is neither a URLClassLoader nor Knot: give the game
+// a private view of our jar by wrapping it, so at least the bridge itself can start.
+jobject createChildLoader(JNIEnv *env, jobject parent, const std::wstring &jarPath) {
+    jclass fileClass = env->FindClass("java/io/File");
+    jclass uriClass = env->FindClass("java/net/URI");
+    jclass urlClass = env->FindClass("java/net/URL");
+    jclass urlClassLoaderClass = env->FindClass("java/net/URLClassLoader");
+    if (!fileClass || !uriClass || !urlClass || !urlClassLoaderClass) {
+        clearPendingException(env, "resolving the child loader classes");
+        return nullptr;
+    }
+    jmethodID fileCtor = env->GetMethodID(fileClass, "<init>", "(Ljava/lang/String;)V");
+    jmethodID toUri = env->GetMethodID(fileClass, "toURI", "()Ljava/net/URI;");
+    jmethodID toUrl = env->GetMethodID(uriClass, "toURL", "()Ljava/net/URL;");
+    jmethodID ctor = env->GetMethodID(urlClassLoaderClass, "<init>",
+                                      "([Ljava/net/URL;Ljava/lang/ClassLoader;)V");
+    if (!fileCtor || !toUri || !toUrl || !ctor) {
+        clearPendingException(env, "resolving URLClassLoader(URL[], ClassLoader)");
+        return nullptr;
+    }
+    jstring jPath = env->NewStringUTF(toUtf8(jarPath).c_str());
+    jobject file = env->NewObject(fileClass, fileCtor, jPath);
+    jobject url = env->CallObjectMethod(
+            env->CallObjectMethod(file, toUri), toUrl);
+    if (clearPendingException(env, "building the child loader URL") || !url) {
+        return nullptr;
+    }
+    jobjectArray urls = env->NewObjectArray(1, urlClass, url);
+    jobject child = env->NewObject(urlClassLoaderClass, ctor, urls, parent);
+    if (clearPendingException(env, "creating the child classloader")) {
+        return nullptr;
+    }
+    return child;
+}
+
+// Puts the jar in front of the classloader the game actually uses and returns that
+// loader, or nullptr when there is no supported way in.
+jobject addJarToLoader(JNIEnv *env, jobject loader, const std::wstring &jarPath) {
     std::string utf8Path = toUtf8(jarPath);
+    if (isUrlClassLoader(env, loader)) {
+    } else if (addToKnot(env, loader, jarPath)) {
+        return loader;
+    } else {
+        // Badlion and other closed launchers use a loader of their own. The old
+        // build reached them through the system class loader search, and that is
+        // still the first thing to try: their loader delegates unknown names up
+        // the chain, so myau.* lands where both sides can see it.
+        jvmtiError error = g_jvmti->AddToSystemClassLoaderSearch(utf8Path.c_str());
+        if (error == JVMTI_ERROR_NONE) {
+            logf("game classloader is %s; appended the jar to the system class"
+                 " loader search: %s", classNameOf(env, loader).c_str(), utf8Path.c_str());
+            return loader;
+        }
+        logf("the system class loader refused the jar (error %d)", error);
+        jobject child = createChildLoader(env, loader, jarPath);
+        if (child) {
+            logf("wrapped %s in a child URLClassLoader instead",
+                 classNameOf(env, loader).c_str());
+            return child;
+        }
+        logf("so there is no supported way to put the jar in front of it.");
+        return nullptr;
+    }
     jclass classLoaderClass = env->FindClass("java/lang/ClassLoader");
     jmethodID getSystem = env->GetStaticMethodID(classLoaderClass, "getSystemClassLoader",
                                                  "()Ljava/lang/ClassLoader;");
@@ -275,23 +438,17 @@ bool addJarToLoader(JNIEnv *env, jobject loader, const std::wstring &jarPath) {
         jvmtiError error = g_jvmti->AddToSystemClassLoaderSearch(utf8Path.c_str());
         if (error == JVMTI_ERROR_NONE) {
             logf("jar appended to the system class loader search: %s", utf8Path.c_str());
-            return true;
+            return loader;
         }
         logf("AddToSystemClassLoaderSearch failed (error %d)", error);
-        return false;
+        return nullptr;
     }
     jclass fileClass = env->FindClass("java/io/File");
     jclass uriClass = env->FindClass("java/net/URI");
     jclass urlClassLoaderClass = env->FindClass("java/net/URLClassLoader");
     if (!fileClass || !uriClass || !urlClassLoaderClass) {
         clearPendingException(env, "resolving java.io.File / java.net.URI");
-        return false;
-    }
-    if (!env->IsInstanceOf(loader, urlClassLoaderClass)) {
-        logf("game classloader is %s -- neither the system loader nor a URLClassLoader,",
-             classNameOf(env, loader).c_str());
-        logf("so there is no supported way to put the jar in front of it.");
-        return false;
+        return nullptr;
     }
     jmethodID fileCtor = env->GetMethodID(fileClass, "<init>", "(Ljava/lang/String;)V");
     jmethodID toUri = env->GetMethodID(fileClass, "toURI", "()Ljava/net/URI;");
@@ -299,21 +456,21 @@ bool addJarToLoader(JNIEnv *env, jobject loader, const std::wstring &jarPath) {
     jmethodID addUrl = env->GetMethodID(urlClassLoaderClass, "addURL", "(Ljava/net/URL;)V");
     if (!fileCtor || !toUri || !toUrl || !addUrl) {
         clearPendingException(env, "resolving addURL");
-        return false;
+        return nullptr;
     }
     jstring jPath = env->NewStringUTF(utf8Path.c_str());
     jobject file = env->NewObject(fileClass, fileCtor, jPath);
     jobject uri = env->CallObjectMethod(file, toUri);
     jobject url = env->CallObjectMethod(uri, toUrl);
     if (clearPendingException(env, "building the jar URL") || !url) {
-        return false;
+        return nullptr;
     }
     env->CallVoidMethod(loader, addUrl, url);
     if (clearPendingException(env, "addURL")) {
-        return false;
+        return nullptr;
     }
     logf("jar added to the game classloader: %s", utf8Path.c_str());
-    return true;
+    return loader;
 }
 jclass loadThroughLoader(JNIEnv *env, jobject loader, const char *className) {
     jclass loaderClass = env->GetObjectClass(loader);
@@ -491,18 +648,34 @@ DWORD WINAPI bootstrap(LPVOID) {
         logf("no .jar next to the DLL -- put the client jar in the same folder");
         return 0;
     }
-    jobject loader = findGameClassLoader(env);
-    if (!loader) {
+    jobject gameLoader = findGameClassLoader(env);
+    if (!gameLoader) {
         return 0;
     }
-    if (!addJarToLoader(env, loader, jar)) {
+    logf("game classloader: %s", classNameOf(env, gameLoader).c_str());
+    jobject loader = addJarToLoader(env, gameLoader, jar);
+    if (!loader) {
+        logf("could not put the client jar in front of %s",
+             classNameOf(env, gameLoader).c_str());
         return 0;
     }
     g_bridge = loadThroughLoader(env, loader, "myau.inject.NativeBridge");
     if (!g_bridge) {
-        logf("could not load myau.inject.NativeBridge from the game classloader");
+        jobject child = createChildLoader(env, gameLoader, jar);
+        if (child) {
+            g_bridge = loadThroughLoader(env, child, "myau.inject.NativeBridge");
+            if (g_bridge) {
+                logf("fell back to a child URLClassLoader over the game loader -- the"
+                     " client will boot, but hooks spliced into the game may not resolve");
+            }
+        }
+    }
+    if (!g_bridge) {
+        logf("could not load myau.inject.NativeBridge through %s",
+             classNameOf(env, loader).c_str());
         return 0;
     }
+    logf("bridge loaded, defined by %s", definingLoaderOf(env, g_bridge).c_str());
     g_transform = env->GetStaticMethodID(g_bridge, "transform",
                                          "(Ljava/lang/String;[B)[B");
     if (!g_transform) {
